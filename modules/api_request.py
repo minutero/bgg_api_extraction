@@ -1,30 +1,79 @@
 import requests
 import xmltodict
-import pandas as pd
+from typing import Dict, Mapping
+from modules.boardgame import boardgame
 
 
-# url = "https://boardgamegeek.com/xmlapi/boardgame/342942?stats=1"
-url_base = "https://boardgamegeek.com/xmlapi2/"
-apis = [
-    "thing",
-    "family",
-    "forumlist",
-    "forum",
-    "thread",
-    "user",
-    "guild",
-    "plays",
-    "collection",
-    "hot",
-    "search",
-]
-url = url_base + apis[0]
-parameters = {"id": 167791, "type": "boardgame", "stats": 1, "pagesize": 100}
-response = requests.get(url=url, params=parameters)
+def bgg_api_call(
+    call_type: str,
+    id: int,
+    extra_parameters: Mapping = {"stats": 1, "pagesize": 100},
+) -> Dict:
+    """Function to get information in XML from BGG API v2
 
-dict_response = xmltodict.parse(response.content)["items"]["item"]
+    Args:
+        call_type (str): Command/Type of Element you would like to pull (See https://boardgamegeek.com/wiki/page/BGG_XML_API2 for reference)
+        id (int): Value of main parameter (ID,name, query, etc) of the element to pull.
+        extra_parameters (Dictionary, optional): Any extra parameters you owuld like to include in the call. Defaults to {"stast": 2, "pagesize": 100}.
 
-designer = [
-    x["@value"] for x in dict_response["link"] if x["@type"] == "boardgamedesigner"
-][0]
-rating = dict_response["statistics"]["ratings"]["average"]["@value"]
+    Raises:
+        Exception: If Command/Type of Element does not exists
+
+    Returns:
+        Dict: Item/Element information.
+    """
+    url_base = "https://boardgamegeek.com/xmlapi2/"
+    allowed_commands = {
+        "thing": "id",
+        "family": "id",
+        "forumlist": "id",
+        "forum": "id",
+        "thread": "id",
+        "user": "name",
+        "guild": "id",
+        "plays": "username",
+        "collection": "username",
+        "hot": "type",
+        "search": "query",
+    }
+    if call_type not in allowed_commands.keys():
+        raise Exception(
+            "Api command does not exists. See https://boardgamegeek.com/wiki/page/BGG_XML_API2 for reference"
+        )
+    url = url_base + call_type
+    parameters = {allowed_commands[call_type]: id} | extra_parameters
+    response = requests.get(url=url, params=parameters)
+
+    return xmltodict.parse(response.content)["items"]["item"]
+
+
+def get_from_name(name: str, replace_name: bool = True):
+    boardgame_search = bgg_api_call(
+        call_type="search",
+        id=name,
+        extra_parameters={"exact": 1, "type": "boardgame"},
+    )
+    id = int(boardgame_search["@id"])
+    bg = get_from_id(id, replace_name)
+
+    return bg
+
+
+def get_from_id(id: int, replace_name: bool = True):
+    bg = boardgame(id=id)
+    boardgame_info = bgg_api_call(call_type="thing", id=bg.id)
+    bg.designer = [
+        x["@value"] for x in boardgame_info["link"] if x["@type"] == "boardgamedesigner"
+    ][0]
+    bg.mechanics = [
+        x["@value"] for x in boardgame_info["link"] if x["@type"] == "boardgamemechanic"
+    ]
+    bg.rating = boardgame_info["statistics"]["ratings"]["average"]["@value"]
+    bg.year_published = int(boardgame_info["yearpublished"]["@value"])
+    boardgame_info.keys()
+
+    if replace_name:
+        bg.name = [
+            x["@value"] for x in boardgame_info["name"] if x["@type"] == "primary"
+        ][0]
+    return bg
