@@ -2,6 +2,7 @@ import requests
 import xmltodict
 import logging
 from typing import Dict, Mapping
+from modules.config import url_base
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -25,7 +26,6 @@ def bgg_api_call(
     Returns:
         Dict: Item/Element information.
     """
-    url_base = "https://boardgamegeek.com/xmlapi2/"
     allowed_commands = {
         "thing": "id",
         "family": "id",

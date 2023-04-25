@@ -1,11 +1,11 @@
-import os
 import sqlite3
 from sqlite3 import Error
 import pandas as pd
 from modules.api_request import get_from_id, get_from_name
+from modules.config import database
 
 
-def db_init_(db_file=os.environ.get("db")):
+def db_init_(db_file=database):
     create_db(db_file)
     query = """ CREATE TABLE IF NOT EXISTS boardgame (
                         id integer PRIMARY KEY,
@@ -45,7 +45,7 @@ def check_exists_db(
     else:
         if check_only:
             return True
-        return bg.to_dict(orient="records")[0]
+    return bg.to_dict(orient="records")[0]
 
 
 def create_db(db_file):
@@ -61,7 +61,7 @@ def create_db(db_file):
             conn.close()
 
 
-def create_connection(db_file=os.environ.get("db")):
+def create_connection(db_file=database):
     """create a database connection to the SQLite database
         specified by db_file
     :param db_file: database file
@@ -77,7 +77,7 @@ def create_connection(db_file=os.environ.get("db")):
     return conn
 
 
-def run_query(query: str, execute_only: bool = True, db_file=os.environ.get("db")):
+def run_query(query: str, execute_only: bool = True, db_file=database):
     conn = create_connection(db_file)
     c = conn.cursor()
     if execute_only:

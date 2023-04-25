@@ -56,3 +56,36 @@ def get_designers(url):
         if_exists="append",
     )
     driver.quit()
+
+
+def get_games_from_designer(name, designer_id=None):
+    if not designer_id:
+        id = run_query(
+            f"select id from designers where lower(designer) = '{name.lower()}'",
+            execute_only=False,
+        ).loc[0][0]
+    else:
+        id = designer_id
+
+    url_designer = f"https://boardgamegeek.com/boardgamedesigner/{id}/{unidecode(name).lower().replace(' ','-')}"
+    url_best_rank_games = "/linkeditems/boardgamedesigner?pageid=1&sort=average"
+    driver = webdriver.Chrome()
+    time.sleep(2)
+    driver.get(url_designer + url_best_rank_games)
+    html = driver.page_source
+    driver.quit()
+
+    bs = BeautifulSoup(html)
+    designer_games_url = bs.findAll("div", class_="media-left")
+    designer_games = [
+        boardgame(id=int(game_url.find("a")["href"].split("/")[2]))
+        for game_url in designer_games_url
+    ]
+    designer_games = [
+        game
+        for game in designer_games
+        if not check_exists_db(id=game.id, check_only=True)
+    ]
+    for game in designer_games:
+        game.get_boardgame_information()
+        game.save_to_db()

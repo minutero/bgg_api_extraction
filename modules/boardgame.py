@@ -1,4 +1,4 @@
-import os
+from modules.config import database
 from modules.db import check_exists_db, run_query
 
 
@@ -40,8 +40,8 @@ Mechanics= {self.mechanics}"""
         self.rating = float(bg_dict["rating"])
         self.year_published = int(bg_dict["year_published"])
 
-    def save_to_db(self, db_file=os.environ.get("db")):
-        query = f"""INSERT INTO boardgame(id,name,designer,mechanics,rating,year_published)
+    def save_to_db(self, db_file=database):
+        query = f"""INSERT OR IGNORE INTO boardgame(id,name,designer,mechanics,rating,year_published)
                     VALUES {self.id,self.name,self.designer,str(self.mechanics),self.rating,self.year_published}"""
         run_query(
             query,
