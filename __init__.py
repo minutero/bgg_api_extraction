@@ -1,8 +1,6 @@
 from modules.db import db_init_
 from modules.designers import get_designers
+from modules.config import database, designer_url
 
-db = "boardgame.db"
-url = "https://boardgamegeek.com/browse/boardgamedesigner"
-
-db_init_(db)
-get_designers(url)
+db_init_(database)
+get_designers(designer_url)

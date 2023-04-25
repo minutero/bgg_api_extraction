@@ -9,10 +9,11 @@ import pandas as pd
 import logging
 from modules.db import create_connection, run_query, check_exists_db
 from modules.boardgame import boardgame
+from modules.helper import save_games
 
 logger = logging.getLogger()
 logger = logging.getLogger(__name__)
-
+logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 
 def get_designers(url):
     url_page = url + "/page/21"
@@ -78,14 +79,7 @@ def get_games_from_designer(name, designer_id=None):
     bs = BeautifulSoup(html)
     designer_games_url = bs.findAll("div", class_="media-left")
     designer_games = [
-        boardgame(id=int(game_url.find("a")["href"].split("/")[2]))
+        game_url.find("a")["href"].split("/")[2]
         for game_url in designer_games_url
     ]
-    designer_games = [
-        game
-        for game in designer_games
-        if not check_exists_db(id=game.id, check_only=True)
-    ]
-    for game in designer_games:
-        game.get_boardgame_information()
-        game.save_to_db()
+    save_games(designer_games)

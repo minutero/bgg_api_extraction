@@ -1,3 +1,4 @@
+import os
 import requests
 import xmltodict
 import logging
@@ -6,6 +7,7 @@ from modules.config import url_base
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
+logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 
 
 def bgg_api_call(

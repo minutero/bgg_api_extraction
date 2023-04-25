@@ -1,8 +1,14 @@
+import os
+import logging
 import sqlite3
 from sqlite3 import Error
 import pandas as pd
 from modules.api_request import get_from_id, get_from_name
 from modules.config import database
+
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 
 
 def db_init_(db_file=database):
