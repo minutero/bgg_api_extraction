@@ -1,7 +1,10 @@
 import requests
 import xmltodict
+import logging
 from typing import Dict, Mapping
-from modules.boardgame import boardgame
+
+logging.basicConfig()
+logger = logging.getLogger(__name__)
 
 
 def bgg_api_call(
@@ -43,6 +46,7 @@ def bgg_api_call(
     url = url_base + call_type
     parameters = {allowed_commands[call_type]: id} | extra_parameters
     response = requests.get(url=url, params=parameters)
+    logger.info(f"Getting information from API for {id}")
 
     return xmltodict.parse(response.content)["items"]["item"]
 
@@ -60,20 +64,21 @@ def get_from_name(name: str, replace_name: bool = True):
 
 
 def get_from_id(id: int, replace_name: bool = True):
-    bg = boardgame(id=id)
-    boardgame_info = bgg_api_call(call_type="thing", id=bg.id)
-    bg.designer = [
+    bg = {"id": id}
+    boardgame_info = bgg_api_call(call_type="thing", id=bg["id"])
+    bg["designer"] = [
         x["@value"] for x in boardgame_info["link"] if x["@type"] == "boardgamedesigner"
     ][0]
-    bg.mechanics = [
+    bg["mechanics"] = [
         x["@value"] for x in boardgame_info["link"] if x["@type"] == "boardgamemechanic"
     ]
-    bg.rating = boardgame_info["statistics"]["ratings"]["average"]["@value"]
-    bg.year_published = int(boardgame_info["yearpublished"]["@value"])
-    boardgame_info.keys()
+    bg["rating"] = float(boardgame_info["statistics"]["ratings"]["average"]["@value"])
+    bg["year_published"] = int(boardgame_info["yearpublished"]["@value"])
 
     if replace_name:
-        bg.name = [
-            x["@value"] for x in boardgame_info["name"] if x["@type"] == "primary"
-        ][0]
+        names = boardgame_info["name"]
+        if isinstance(names, list):
+            bg["name"] = [x["@value"] for x in names if x["@type"] == "primary"][0]
+        else:
+            bg["name"] = names["@value"]
     return bg

@@ -1,48 +1,49 @@
-import ast
-from modules.api_request import get_from_id, get_from_name
-from modules.db import check_exists_db
+import os
+from modules.db import check_exists_db, run_query
 
 
 class boardgame:
     def __init__(
         self,
-        name: str = None,
         id: int = None,
+        name: str = None,
         designer: str = None,
         mechanics: list = None,
         rating: float = None,
         year_published: int = None,
     ):
-        self.id = id
-        self.name = name
+        self.id = int(id) if id else id
+        self.name = str(name) if name else name
         self.designer = designer
         self.mechanics = mechanics
         self.rating = rating
         self.year_published = year_published
 
     def __str__(self):
+        return f"""Boardgame:
+Name= {self.name}
+ID= {self.id}
+Designer= {self.designer}
+Rating= {self.rating}
+Published= {self.year_published}
+Mechanics= {self.mechanics}"""
+
+    def __repr__(self):
         return f"{self.name}({self.id})"
 
-    def get_boardgame_information(self, replace_name: bool = True):
-        exists, df_bg = check_exists_db(self.name, self.id)
-        if not exists:
-            if self.id is None and self.name is not None:
-                bg = get_from_name(self.name, replace_name)
-                self.id = bg.id
-                self.designer = bg.designer
-                self.mechanics = bg.mechanics
-                self.rating = bg.rating
-                self.year_published = bg.year_published
-            elif self.name is None and self.id is not None:
-                bg = get_from_id(self.id, replace_name)
-                self.name = bg.name
-                self.designer = bg.designer
-                self.mechanics = bg.mechanics
-                self.rating = bg.rating
-                self.year_published = bg.year_published
-        else:
-            self.id = df_bg["id"]
-            self.designer = df_bg["designer"]
-            self.mechanics = ast.literal_eval(df_bg["mechanics"])
-            self.rating = df_bg["rating"]
-            self.year_published = df_bg["year_published"]
+    def get_boardgame_information(self):
+        bg_dict = check_exists_db(self.name, self.id)
+        self.id = int(bg_dict["id"])
+        self.name = str(bg_dict["name"])
+        self.designer = str(bg_dict["designer"])
+        self.mechanics = list(bg_dict["mechanics"])
+        self.rating = float(bg_dict["rating"])
+        self.year_published = int(bg_dict["year_published"])
+
+    def save_to_db(self, db_file=os.environ.get("db")):
+        query = f"""INSERT INTO boardgame(id,name,designer,mechanics,rating,year_published)
+                    VALUES {self.id,self.name,self.designer,str(self.mechanics),self.rating,self.year_published}"""
+        run_query(
+            query,
+            db_file=db_file,
+        )

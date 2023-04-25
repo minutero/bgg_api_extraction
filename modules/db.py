@@ -2,24 +2,53 @@ import os
 import sqlite3
 from sqlite3 import Error
 import pandas as pd
+from modules.api_request import get_from_id, get_from_name
 
 
-def check_exists_db(name=None, id=None):
-    try:
-        bg = run_query(
-            f"SELECT * FROM bgg.boardgame where name = '{name}' or id = {id if id else 0}",
-        )
-    except:
-        print("Database or table not found")
-        bg = pd.DataFrame(columns=["id", "name"])
+def db_init_(db_file=os.environ.get("db")):
+    create_db(db_file)
+    query = """ CREATE TABLE IF NOT EXISTS boardgame (
+                        id integer PRIMARY KEY,
+                        name text NOT NULL,
+                        designer integer,
+                        mechanics text,
+                        rating real,
+                        year_published integer
+                                    );
+                CREATE TABLE IF NOT EXISTS designers (
+                        id integer PRIMARY KEY,
+                        designer text
+                                    );"""
+    run_query(query)
 
-    if name in bg["name"].unique() or id in bg["id"].unique():
-        return True, bg
+
+def check_exists_db(
+    name: str = None,
+    id: int = None,
+    replace_name: bool = True,
+    check_only: bool = False,
+):
+    bg = run_query(
+        f"SELECT * FROM boardgame where name = '{name}' or id = {id if id else 0}",
+        execute_only=False,
+    )
+
+    if bg.empty:
+        if check_only:
+            return False
+        if id is not None:
+            bg = pd.json_normalize(get_from_id(id, replace_name))
+        elif name is not None:
+            bg = pd.json_normalize(get_from_name(name, replace_name))
+        else:
+            print("Name and ID are empty. Please provide at least one of them")
     else:
-        return False, bg
+        if check_only:
+            return True
+        return bg.to_dict(orient="records")[0]
 
 
-def create_db(db_file=os.environ.get("db")):
+def create_db(db_file):
     """create a database connection to a SQLite database"""
     conn = None
     try:
@@ -48,11 +77,15 @@ def create_connection(db_file=os.environ.get("db")):
     return conn
 
 
-def run_query(query: str, read_only: bool = False):
-    conn = create_connection()
+def run_query(query: str, execute_only: bool = True, db_file=os.environ.get("db")):
+    conn = create_connection(db_file)
     c = conn.cursor()
-    if read_only:
+    if execute_only:
         c.execute(query)
+        conn.commit()
+        conn.close()
         return True
     else:
-        return pd.read_sql_query(query, c)
+        df = pd.read_sql_query(query, conn)
+        conn.close()
+        return df
