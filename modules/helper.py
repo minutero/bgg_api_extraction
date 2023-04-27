@@ -20,5 +20,6 @@ def save_games(list_ids: list):
     for game in list_games:
         game.get_boardgame_information()
         game.save_to_db()
-        logger.info(f"{game.name} inserted in databse")
+        logger.info(f"{game.name} inserted in database")
         time.sleep(2)
+
