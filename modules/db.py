@@ -19,7 +19,8 @@ def db_init_(db_file=database):
                         designer integer,
                         mechanics text,
                         rating real,
-                        year_published integer
+                        year_published integer,
+                        type text
                                     );
                 CREATE TABLE IF NOT EXISTS designers (
                         id integer PRIMARY KEY,

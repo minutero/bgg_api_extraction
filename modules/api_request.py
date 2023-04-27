@@ -76,7 +76,7 @@ def get_from_id(id: int, replace_name: bool = True):
     ]
     bg["rating"] = float(boardgame_info["statistics"]["ratings"]["average"]["@value"])
     bg["year_published"] = int(boardgame_info["yearpublished"]["@value"])
-
+    bg["type"] = str(boardgame_info["@type"])
     if replace_name:
         names = boardgame_info["name"]
         if isinstance(names, list):
