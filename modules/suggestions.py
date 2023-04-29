@@ -8,7 +8,7 @@ import ast
 
 
 def suggest_games(
-    user, game_status={"own": 1, "stats": 1}, source="rating", amount=5, top=5
+    user, game_status={"own": 1, "stats": 1}, source="rating", results=5, top=5
 ):
     user_collection = bgg_api_call("collection", user, game_status)
     games_from_user_network(user_collection)
@@ -29,16 +29,16 @@ def suggest_games(
     )
 
     df_designer = get_designer_best(
-        list_top, user_collection, amount=amount, top_by_designer=3
+        list_top, user_collection, results=results, top_by_designer=3
     )
-    df_mechanic = get_mechanics_best(list_top, user_collection, amount=amount)
+    df_mechanic = get_mechanics_best(list_top, user_collection, results=results)
     df_suggestion = pd.concat([df_designer, df_mechanic])
     print(df_suggestion)
     return df_suggestion
 
 
 def get_designer_best(
-    list_game_id, user_collection, no_expansion=True, top_by_designer=1, amount=5
+    list_game_id, user_collection, no_expansion=True, top_by_designer=1, results=5
 ):
     list_game_id_str = [str(x) for x in list_game_id]
     df_designer_best = run_query(
@@ -61,13 +61,13 @@ def get_designer_best(
     df_designer_score = df_designer_best[
         df_designer_best["rank"].isin(list(range(1, top_by_designer + 1)))
     ].sort_values("rating", ascending=False)
-    df_designer_top = df_designer_score.head(amount)[
+    df_designer_top = df_designer_score.head(results)[
         ["name", "rating", "type"]
     ].reset_index(drop=True)
     return df_designer_top.assign(recommendation="designer")
 
 
-def get_mechanics_best(list_game_id, user_collection, no_expansion=True, amount=5):
+def get_mechanics_best(list_game_id, user_collection, no_expansion=True, results=5):
     list_game_id_str = [str(x) for x in list_game_id]
     df_mechanics = run_query(
         f"select distinct mechanics from boardgame b where id in ({','.join(list_game_id_str)})",
@@ -111,7 +111,7 @@ def get_mechanics_best(list_game_id, user_collection, no_expansion=True, amount=
         .sort_values("count", ascending=False)
     )
 
-    df_mechanics_top = df_mechanics_score.head(amount)[
+    df_mechanics_top = df_mechanics_score.head(results)[
         ["name", "rating", "type"]
     ].reset_index(drop=True)
     return df_mechanics_top.assign(recommendation="mechanics")
