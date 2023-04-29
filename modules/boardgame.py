@@ -52,15 +52,16 @@ Mechanics= {self.mechanics}"""
 
     def save_to_db(self, db_file=database):
         query = f"""INSERT OR IGNORE INTO boardgame(id,name,designer,mechanics,rating,year_published,type)
-                    VALUES {self.id,
-                            self.name.replace('"',"'"),
+                    VALUES (?,?,?,?,?,?,?)"""
+        run_query(
+            query,
+            parameters=(self.id,
+                            self.name,
                             self.designer,
                             str(self.mechanics),
                             self.rating,
                             self.year_published,
-                            self.type}"""
-        run_query(
-            query,
+                            self.type),
             db_file=db_file,
         )
 

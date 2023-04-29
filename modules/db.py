@@ -84,11 +84,14 @@ def create_connection(db_file=database):
     return conn
 
 
-def run_query(query: str, execute_only: bool = True, db_file=database):
+def run_query(query: str, execute_only: bool = True, parameters=None, db_file=database):
     conn = create_connection(db_file)
     c = conn.cursor()
     if execute_only:
-        c.execute(query)
+        if parameters:
+            c.execute(query, parameters)
+        else:
+            c.execute(query)
         conn.commit()
         conn.close()
         return True
