@@ -1,5 +1,6 @@
 from unidecode import unidecode
 import os
+import re
 import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -9,7 +10,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import logging
 from modules.db import create_connection, run_query
-from modules.helper import save_games
+from modules.boardgame import save_games
 
 logger = logging.getLogger()
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 
 chrome_options = Options()
 chrome_options.add_argument("--headless")
-chrome_options.add_argument("--log-level=3")
+chrome_options.add_argument("--log-level=OFF")
 
 
 def get_designers(url):
@@ -62,14 +63,27 @@ def get_designers(url):
 
 
 def get_games_from_designer(name, designer_id=None):
+    if "'" in name:
+        quote = '"'
+    else:
+        quote = "'"
     if not designer_id:
-        id = run_query(
-            f'select id from designers where designer = "{name}"',
+        df_id = run_query(
+            f"""select id from designers where designer = {quote}{name}{quote}""",
             execute_only=False,
-        ).loc[0][0]
+        )
+        if df_id.empty:
+            id = 0
+            logger.warning(
+                f"Designer {name} is presenting issues to read from database"
+            )
+            return False
+        else:
+            id = df_id.loc[0][0]
     else:
         id = designer_id
-    new_name = unidecode(name).lower().replace(" ", "-").replace("'", "")
+    regex = re.compile("[^a-zA-Z\-]")
+    new_name = regex.sub("", unidecode(name).replace(" ", "-")).lower()
     url_designer = f"https://boardgamegeek.com/boardgamedesigner/{id}/{new_name}"
     url_best_rank_games = "/linkeditems/boardgamedesigner?pageid=1&sort=rank"
     driver = webdriver.Chrome()
@@ -83,4 +97,8 @@ def get_games_from_designer(name, designer_id=None):
     designer_games = [
         game_url.find("a")["href"].split("/")[2] for game_url in designer_games_url
     ]
-    save_games(designer_games)
+    if len(designer_games) == 0:
+        logger.warning(f"Designer {name} does not have any games")
+        return False
+    else:
+        save_games(designer_games)

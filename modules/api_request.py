@@ -3,6 +3,7 @@ import requests
 import xmltodict
 import logging
 from typing import Dict, Mapping
+from unicodedata import normalize
 from modules.config import url_base
 
 logging.basicConfig()
@@ -68,12 +69,23 @@ def get_from_name(name: str, replace_name: bool = True):
 def get_from_id(id: int, replace_name: bool = True):
     bg = {"id": id}
     boardgame_info = bgg_api_call(call_type="thing", id=bg["id"])
-    bg["designer"] = [
-        x["@value"] for x in boardgame_info["link"] if x["@type"] == "boardgamedesigner"
-    ][0]
-    bg["mechanics"] = [
-        x["@value"] for x in boardgame_info["link"] if x["@type"] == "boardgamemechanic"
+    designer = [
+        normalize("NFKC", x["@value"])
+        for x in boardgame_info["link"]
+        if x["@type"] == "boardgamedesigner"
     ]
+    bg["designer"] = designer[0] if len(designer) > 0 else None
+    bg["mechanics"] = (
+        str(
+            [
+                x["@value"]
+                for x in boardgame_info["link"]
+                if x["@type"] == "boardgamemechanic"
+            ]
+        )
+        .replace("'s", "s")
+        .replace("'", '"')
+    )
     bg["rating"] = float(boardgame_info["statistics"]["ratings"]["average"]["@value"])
     bg["year_published"] = int(boardgame_info["yearpublished"]["@value"])
     bg["type"] = str(boardgame_info["@type"])
