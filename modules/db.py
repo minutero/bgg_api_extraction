@@ -96,6 +96,9 @@ def run_query(query: str, execute_only: bool = True, parameters=None, db_file=da
         conn.close()
         return True
     else:
-        df = pd.read_sql_query(query, conn)
+        if parameters:
+            df = pd.read_sql_query(query, conn, params=parameters)
+        else:
+            df = pd.read_sql_query(query, conn)
         conn.close()
         return df
