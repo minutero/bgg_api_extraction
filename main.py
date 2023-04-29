@@ -3,7 +3,6 @@ from modules.suggestions import suggest_games
 
 
 def main():
-    print(sys.argv)
     user = sys.argv[1]
     game_status = sys.argv[2] if len(sys.argv) > 2 else {"own": 1, "stats": 1}
     source = sys.argv[3] if len(sys.argv) > 3 else "rating"
