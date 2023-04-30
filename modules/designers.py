@@ -9,8 +9,8 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import logging
-from modules.db import create_connection, run_query
 from modules.boardgame import save_games
+from config.db_connection import run_query, create_connection
 
 logger = logging.getLogger()
 logger = logging.getLogger(__name__)
@@ -86,13 +86,13 @@ def get_games_from_designer(name, designer_id=None):
     new_name = regex.sub("", unidecode(name).replace(" ", "-")).lower()
     url_designer = f"https://boardgamegeek.com/boardgamedesigner/{id}/{new_name}"
     url_best_rank_games = "/linkeditems/boardgamedesigner?pageid=1&sort=rank"
-    driver = webdriver.Chrome()
+    driver = webdriver.Chrome(options=chrome_options)
     time.sleep(2)
     driver.get(url_designer + url_best_rank_games)
     html = driver.page_source
     driver.quit()
 
-    bs = BeautifulSoup(html)
+    bs = BeautifulSoup(html, features="html.parser")
     designer_games_url = bs.findAll("div", class_="media-left")
     designer_games = [
         game_url.find("a")["href"].split("/")[2] for game_url in designer_games_url

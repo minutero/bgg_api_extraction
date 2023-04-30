@@ -2,9 +2,11 @@ import os
 import requests
 import xmltodict
 import logging
+import pandas as pd
 from typing import Dict, Mapping
 from unicodedata import normalize
 from modules.config import url_base
+from config.db_connection import run_query
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -96,3 +98,29 @@ def get_from_id(id: int, replace_name: bool = True):
         else:
             bg["name"] = names["@value"]
     return bg
+
+
+def check_exists_db(
+    name: str = None,
+    id: int = None,
+    replace_name: bool = True,
+    check_only: bool = False,
+):
+    bg = run_query(
+        f"SELECT * FROM boardgame where name = '{name}' or id = {id if id else 0}",
+        execute_only=False,
+    )
+
+    if bg.empty:
+        if check_only:
+            return False
+        if id is not None:
+            bg = pd.json_normalize(get_from_id(id, replace_name))
+        elif name is not None:
+            bg = pd.json_normalize(get_from_name(name, replace_name))
+        else:
+            print("Name and ID are empty. Please provide at least one of them")
+    else:
+        if check_only:
+            return True
+    return bg.to_dict(orient="records")[0]

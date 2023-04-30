@@ -2,7 +2,8 @@ import os
 import time
 import logging
 from modules.config import database
-from modules.db import check_exists_db, run_query
+from modules.api_request import check_exists_db
+from config.db_connection import run_query
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -55,13 +56,15 @@ Mechanics= {self.mechanics}"""
                     VALUES (?,?,?,?,?,?,?)"""
         run_query(
             query,
-            parameters=(self.id,
-                            self.name,
-                            self.designer,
-                            str(self.mechanics),
-                            self.rating,
-                            self.year_published,
-                            self.type),
+            parameters=(
+                self.id,
+                self.name,
+                self.designer,
+                str(self.mechanics),
+                self.rating,
+                self.year_published,
+                self.type,
+            ),
             db_file=db_file,
         )
 
