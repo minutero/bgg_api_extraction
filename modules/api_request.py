@@ -5,7 +5,7 @@ import logging
 import pandas as pd
 from typing import Dict, Mapping
 from unicodedata import normalize
-from modules.config import url_base
+from config.config import url_base
 from config.db_connection import run_query
 
 logging.basicConfig()
@@ -17,6 +17,7 @@ def bgg_api_call(
     call_type: str,
     id: int,
     extra_parameters: Mapping = {"stats": 1, "pagesize": 100},
+    verbose: bool = False,
 ) -> Dict:
     """Function to get information in XML from BGG API v2
 
@@ -51,7 +52,8 @@ def bgg_api_call(
     url = url_base + call_type
     parameters = {allowed_commands[call_type]: id} | extra_parameters
     response = requests.get(url=url, params=parameters)
-    logger.info(f"Getting information from API for {id}")
+    if verbose:
+        logger.info(f"Getting information from API for {id}")
 
     return xmltodict.parse(response.content)["items"]["item"]
 
@@ -108,7 +110,6 @@ def check_exists_db(
 ):
     bg = run_query(
         f"SELECT * FROM boardgame where name = '{name}' or id = {id if id else 0}",
-        execute_only=False,
     )
 
     if bg.empty:

@@ -6,9 +6,7 @@ import numpy as np
 import ast
 
 
-def suggest_games(
-    user, game_status={"own": 1, "stats": 1}, source="rating", results=5, top=5
-):
+def suggest_games(user, game_status={"stats": 1}, source="rating", results=5, top=5):
     user_collection = bgg_api_call("collection", user, game_status)
     games_id = [x["@objectid"] for x in user_collection if x["@subtype"] == "boardgame"]
     save_list_network_to_db(games_id)
@@ -56,7 +54,6 @@ def get_designer_best(
                     designer in (select distinct designer from boardgame b2 where id in ({','.join(list_game_id_str)}))
                     and id not in ({','.join([k["@objectid"] for k in user_collection])})
                 order by designer,rating DESC """,
-        execute_only=False,
     )
     df_designer_score = df_designer_best[
         df_designer_best["rank"].isin(list(range(1, top_by_designer + 1)))
@@ -71,7 +68,6 @@ def get_mechanics_best(list_game_id, user_collection, no_expansion=True, results
     list_game_id_str = [str(x) for x in list_game_id]
     df_mechanics = run_query(
         f"select distinct mechanics from boardgame b where id in ({','.join(list_game_id_str)})",
-        execute_only=False,
     )
     list_mechanics = list(df_mechanics.mechanics.apply(ast.literal_eval))
     all_mechanics = [str(item) for sublist in list_mechanics for item in sublist]
@@ -90,7 +86,6 @@ def get_mechanics_best(list_game_id, user_collection, no_expansion=True, results
             where {"type = 'boardgame' and " if no_expansion else ""}
                 ({' or '.join([f"mechanics like '%{x}%'" for x in list_unique_mechanics])})
                 and id not in ({','.join([k["@objectid"] for k in user_collection])})""",
-        execute_only=False,
     )
     lit_eval_if = lambda x: ast.literal_eval(x) if isinstance(x, str) else x
     df_mechanics_best.loc[:, "mechanic"] = df_mechanics_best["mechanics"].apply(

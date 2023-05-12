@@ -1,7 +1,6 @@
 import os
 import time
 import logging
-from modules.config import database
 from modules.api_request import check_exists_db
 from config.db_connection import run_query
 
@@ -51,9 +50,10 @@ Mechanics= {self.mechanics}"""
         self.year_published = int(bg_dict["year_published"])
         self.type = str(bg_dict["type"])
 
-    def save_to_db(self, db_file=database):
-        query = f"""INSERT OR IGNORE INTO boardgame(id,name,designer,mechanics,rating,year_published,type)
-                    VALUES (?,?,?,?,?,?,?)"""
+    def save_to_db(self):
+        query = f"""INSERT INTO boardgame(id,name,designer,mechanics,rating,year_published,type)
+                    VALUES (?,?,?,?,?,?,?)
+                    ON CONFLICT (id) DO NOTHING"""
         run_query(
             query,
             parameters=(
@@ -65,7 +65,7 @@ Mechanics= {self.mechanics}"""
                 self.year_published,
                 self.type,
             ),
-            db_file=db_file,
+            execute_only=True,
         )
 
 
