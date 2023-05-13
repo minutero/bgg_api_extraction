@@ -10,14 +10,18 @@ logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 
 
-def get_all_json():
+def get_all_json(which_games_source):
     games_ready = os.listdir(
         r"C:\Users\NB-FSILVA\python_personal\bgg_api_extraction\all_games_json"
     )
     start = max([int(x[5:11]) for x in games_ready], default=0)
-    list_game_ids = run_query(
-        f"select id from boardgame where id > {start} order by id", conn_type="sqlite"
-    )["id"].values
+    if which_games_source.endswith(".db"):
+        list_game_ids = run_query(
+            f"select id from boardgame where id > {start} order by id",
+            conn_type=which_games_source,
+        )["id"].values
+    else:
+        list_game_ids = which_games_source
     i = 0
     len_game = len(list_game_ids)
     logger.info(f"Downloading {len_game} games")
@@ -39,7 +43,7 @@ def get_all_json():
 end_condition = False
 while not (end_condition):
     try:
-        end_condition = get_all_json()
+        end_condition = get_all_json("boardgame.db")
     except Exception as e:
         logger.error("Error in bgg_api_call")
         logger.info(e)

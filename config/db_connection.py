@@ -1,7 +1,6 @@
 import os
 import psycopg2
 import sqlite3
-from sqlalchemy import create_engine
 import pandas as pd
 
 
@@ -21,11 +20,10 @@ def create_connection(db=None):
                 port=os.getenv("db_port"),
             )
         else:
-            conn = sqlite3.connect("boardgame.db")
+            conn = sqlite3.connect(db)
         return conn
     except Exception as e:
         print(e)
-
     return conn
 
 
@@ -36,14 +34,12 @@ def run_query(query: str, execute_only: bool = False, parameters=None, conn_type
         c.execute(query, parameters)
     else:
         c.execute(query)
-
     if execute_only:
         conn.commit()
         df = None
     else:
         column_names = [desc[0] for desc in c.description]
         df = pd.DataFrame(c.fetchall(), columns=column_names)
-
     c.close()
     conn.close()
     return df
@@ -52,8 +48,16 @@ def run_query(query: str, execute_only: bool = False, parameters=None, conn_type
 def df_to_db(df, table, schema=None, primary=["id"]):
     cols = list(df.columns)
     schema_dot = schema + "." if schema else None
+    sq = "'"
     for row in df.to_dict("records"):
-        values = [f"'{x}'" if isinstance(x, str) else str(x) for x in row.values()]
+        values = [
+            f"'{x.replace(sq,sq*2)}'"
+            if (isinstance(x, str) and "'" in x)
+            else f"'{x}'"
+            if isinstance(x, str)
+            else str(x)
+            for x in row.values()
+        ]
         query = f"""INSERT INTO {schema_dot}{table} ({",".join(cols)})
             VALUES ({",".join(values)})
             ON CONFLICT ({",".join(primary)}) DO NOTHING"""

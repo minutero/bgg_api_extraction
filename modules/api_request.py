@@ -4,7 +4,6 @@ import xmltodict
 import logging
 import pandas as pd
 from typing import Dict, Mapping
-from unicodedata import normalize
 from config.config import url_base
 from config.db_connection import run_query
 
@@ -73,27 +72,31 @@ def get_from_name(name: str, replace_name: bool = True):
 def get_from_id(id: int, replace_name: bool = True):
     bg = {"id": id}
     boardgame_info = bgg_api_call(call_type="thing", id=bg["id"])
-    designer = [
-        normalize("NFKC", x["@value"])
-        for x in boardgame_info["link"]
-        if x["@type"] == "boardgamedesigner"
-    ]
-    bg["designer"] = designer[0] if len(designer) > 0 else None
-    bg["mechanics"] = (
-        str(
-            [
-                x["@value"]
-                for x in boardgame_info["link"]
-                if x["@type"] == "boardgamemechanic"
-            ]
-        )
-        .replace("'s", "s")
-        .replace("'", '"')
+    # WEIGHT
+    bg["weight"] = float(
+        boardgame_info["statistics"]["ratings"]["averageweight"]["@value"]
     )
+    # RATING
     bg["rating"] = float(boardgame_info["statistics"]["ratings"]["average"]["@value"])
-    bg["year_published"] = int(boardgame_info["yearpublished"]["@value"])
-    bg["type"] = str(boardgame_info["@type"])
+    # YEAR
+    bg["year"] = int(boardgame_info["yearpublished"]["@value"])
+    # TYPE
+    bg["type"] = boardgame_info["@type"]
+    # MINPLAYERS
+    bg["minplayers"] = int(boardgame_info["minplayers"]["@value"])
+    bg["maxplayers"] = int(boardgame_info["maxplayers"]["@value"])
+    bg["age"] = int(boardgame_info["minage"]["@value"])
+    bg["minplaytime"] = int(boardgame_info["minplaytime"]["@value"])
+    bg["maxplaytime"] = int(boardgame_info["maxplaytime"]["@value"])
+    bg["rating_users"] = int(
+        boardgame_info["statistics"]["ratings"]["usersrated"]["@value"]
+    )
+    bg["weight_users"] = int(
+        boardgame_info["statistics"]["ratings"]["numweights"]["@value"]
+    )
+
     if replace_name:
+        # NAME
         names = boardgame_info["name"]
         if isinstance(names, list):
             bg["name"] = [x["@value"] for x in names if x["@type"] == "primary"][0]
@@ -109,7 +112,7 @@ def check_exists_db(
     check_only: bool = False,
 ):
     bg = run_query(
-        f"SELECT * FROM boardgame where name = '{name}' or id = {id if id else 0}",
+        f"SELECT * FROM boardgames.boardgame where name = '{name}' or id = {id if id else 0}"
     )
 
     if bg.empty:

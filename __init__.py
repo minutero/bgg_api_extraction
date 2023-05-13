@@ -36,19 +36,27 @@ def games_from_files():
     json_files = [
         pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith(".json")
     ]
-
+    games_in_db = run_query("select id from boardgames.boardgame")
+    list_json_exclude = [
+        f"game_{str(x).zfill(6)}.json" for x in list(games_in_db["id"].values)
+    ]
+    json_to_process = [file for file in json_files if file not in list_json_exclude]
+    total_n_process = len(json_to_process)
     boardgame = []
     mechanic = []
     designer = []
-
-    for js in json_files:
+    logger.info(f"###################################################")
+    logger.info(f"############# Processing {total_n_process} games ###############")
+    logger.info(f"###################################################")
+    for i, js in enumerate(json_to_process):
+        if i % 100 == 0:
+            logger.info(f"Processing file {js} ({i}/{total_n_process})")
         with open(os.path.join(path_to_json, js)) as json_file:
             json_text = json.load(json_file)
-
             boardgame.append(boardgame_from_json(json_text))
             mechanic.append(bg_mechanic_from_json(json_text))
             designer.append(bg_designer_from_json(json_text))
-
+    logger.info(f"Ready reading {total_n_process} files. Starting DB insert.")
     df_to_db(pd.concat(boardgame), "boardgame", "boardgames")
     df_to_db(
         pd.concat(mechanic), "bg_x_mechanic", "boardgames", ["game_id", "mechanic_id"]
@@ -90,7 +98,6 @@ def boardgame_from_json(json_game):
     data["weight_users"] = int(
         json_game["statistics"]["ratings"]["numweights"]["@value"]
     )
-
     return pd.json_normalize(data)
 
 
@@ -110,7 +117,6 @@ def bg_mechanic_from_json(json_game):
                 ON CONFLICT (id) DO NOTHING
             """
         run_query(sql, execute_only=True, parameters=(k, v))
-
     mechanic_ids = data["mechanics"].keys()
     return pd.DataFrame(
         {
@@ -137,7 +143,6 @@ def bg_designer_from_json(json_game):
                 ON CONFLICT (id) DO NOTHING
             """
         run_query(sql, execute_only=True, parameters=(k, v))
-
     designer_ids = data["designer"].keys()
     return pd.DataFrame(
         {

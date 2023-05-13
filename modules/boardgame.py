@@ -8,34 +8,61 @@ logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 
+columns = [
+    "id",
+    "name",
+    "weight",
+    "rating",
+    "year",
+    "type",
+    "minplayers",
+    "maxplayers",
+    "age",
+    "minplaytime",
+    "maxplaytime",
+    "rating_users",
+    "weight_users",
+]
+
 
 class boardgame:
     def __init__(
         self,
         id: int = None,
         name: str = None,
-        designer: str = None,
-        mechanics: str = None,
+        weight: float = None,
         rating: float = None,
-        year_published: int = None,
+        year: int = None,
         type: str = None,
+        minplayers: int = None,
+        maxplayers: int = None,
+        age: int = None,
+        minplaytime: int = None,
+        maxplaytime: int = None,
+        rating_users: int = None,
+        weight_users: int = None,
     ):
         self.id = int(id) if id else id
         self.name = str(name).replace('"', "'") if name else name
-        self.designer = designer
-        self.mechanics = mechanics
-        self.rating = rating
-        self.year_published = year_published
+        self.weight = float(weight) if weight else weight
+        self.rating = float(rating) if rating else rating
+        self.year = int(year) if year else year
         self.type = str(type) if type else type
+        self.minplayers = int(minplayers) if minplayers else minplayers
+        self.maxplayers = int(maxplayers) if maxplayers else maxplayers
+        self.age = int(age) if age else age
+        self.minplaytime = int(minplaytime) if minplaytime else minplaytime
+        self.maxplaytime = int(maxplaytime) if maxplaytime else maxplaytime
+        self.rating_users = int(rating_users) if rating_users else rating_users
+        self.weight_users = int(weight_users) if weight_users else weight_users
 
     def __str__(self):
         return f"""{self.type.title()}:
-Name= {self.name}
 ID= {self.id}
-Designer= {self.designer}
+Name= {self.name}
 Rating= {self.rating}
-Published= {self.year_published}
-Mechanics= {self.mechanics}"""
+Weight= {self.weight}
+Published= {self.year}"""
 
     def __repr__(self):
         return f"{self.name}({self.id})"
@@ -44,26 +71,38 @@ Mechanics= {self.mechanics}"""
         bg_dict = check_exists_db(self.name, self.id)
         self.id = int(bg_dict["id"])
         self.name = str(bg_dict["name"]).replace('"', "'")
-        self.designer = str(bg_dict["designer"])
-        self.mechanics = str(bg_dict["mechanics"])
+        self.weight = float(bg_dict["weight"])
         self.rating = float(bg_dict["rating"])
-        self.year_published = int(bg_dict["year_published"])
+        self.year = int(bg_dict["year"])
         self.type = str(bg_dict["type"])
+        self.minplayers = int(bg_dict["minplayers"])
+        self.maxplayers = int(bg_dict["maxplayers"])
+        self.age = int(bg_dict["age"])
+        self.minplaytime = int(bg_dict["minplaytime"])
+        self.maxplaytime = int(bg_dict["maxplaytime"])
+        self.rating_users = int(bg_dict["rating_users"])
+        self.weight_users = int(bg_dict["weight_users"])
 
     def save_to_db(self):
-        query = f"""INSERT INTO boardgame(id,name,designer,mechanics,rating,year_published,type)
-                    VALUES (?,?,?,?,?,?,?)
+        query = f"""INSERT INTO boardgames.boardgame({",".join(columns)})
+                    VALUES ({(",%s"*len(columns))[1:]})
                     ON CONFLICT (id) DO NOTHING"""
         run_query(
             query,
             parameters=(
                 self.id,
                 self.name,
-                self.designer,
-                str(self.mechanics),
+                self.weight,
                 self.rating,
-                self.year_published,
+                self.year,
                 self.type,
+                self.minplayers,
+                self.maxplayers,
+                self.age,
+                self.minplaytime,
+                self.maxplaytime,
+                self.rating_users,
+                self.weight_users,
             ),
             execute_only=True,
         )
