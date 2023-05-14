@@ -54,7 +54,11 @@ def bgg_api_call(
     if verbose:
         logger.info(f"Getting information from API for {id}")
 
-    return xmltodict.parse(response.content)["items"]["item"]
+    try:
+        return xmltodict.parse(response.content)["items"]["item"]
+    except:
+        logger.error(f"Failed getting information from API for {id}")
+        return {}
 
 
 def get_from_name(name: str, replace_name: bool = True):

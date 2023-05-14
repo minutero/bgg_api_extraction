@@ -27,6 +27,8 @@ def get_all_json(which_games_source):
     logger.info(f"Downloading {len_game} games")
     for game_id in list_game_ids:
         i += 1
+        if game_id == 374189:
+            continue
         json_response = bgg_api_call("thing", game_id)
         filepath = r"C:\Users\NB-FSILVA\python_personal\bgg_api_extraction\all_games_json\game_{i}.json".format(
             i=str(game_id).zfill(6)

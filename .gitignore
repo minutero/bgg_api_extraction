@@ -138,3 +138,5 @@ mage/
 .vscode/
 
 *.db
+
+chromedriver.exe

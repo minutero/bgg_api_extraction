@@ -3,10 +3,23 @@ from modules.db import save_list_network_to_db
 from config.db_connection import run_query
 import pandas as pd
 import numpy as np
+from config.config import columns
+from dotenv_vault import load_dotenv
+
+load_dotenv()
 
 
-def suggest_games(user, game_status={"stats": 1}, source="rating", results=5, top=5):
-    user_collection = bgg_api_call("collection", user, game_status)
+def suggest_games(user, **kwargs):
+    results = 5 if not kwargs.get("results") else kwargs.get("results")
+    top = 5 if not kwargs.get("top") else kwargs.get("top")
+    game_status_all = (
+        kwargs.get("game_status") | {"stats": 1}
+        if kwargs.get("game_status")
+        else {"stats": 1}
+    )
+    sort = "rating" if not kwargs.get("sort") else kwargs.get("sort")
+
+    user_collection = bgg_api_call("collection", user, game_status_all)
     games_id = [x["@objectid"] for x in user_collection if x["@subtype"] == "boardgame"]
     save_list_network_to_db(games_id)
     df_plays = (
@@ -22,11 +35,11 @@ def suggest_games(user, game_status={"stats": 1}, source="rating", results=5, to
     )
 
     list_top = list(
-        df_plays.sort_values([source, "numplays"], ascending=False).head(top)["id"]
+        df_plays.sort_values([sort, "numplays"], ascending=False).head(top)["id"]
     )
 
     df_designer = get_designer_best(
-        list_top, user_collection, results=results, top_by_designer=3
+        list_top, user_collection, results=results, **kwargs
     )
     df_mechanic = get_mechanics_best(list_top, user_collection, results=results)
     df_suggestion = pd.concat([df_designer, df_mechanic])
@@ -35,7 +48,12 @@ def suggest_games(user, game_status={"stats": 1}, source="rating", results=5, to
 
 
 def get_designer_best(
-    list_game_id, user_collection, no_expansion=True, top_by_designer=1, results=5
+    list_game_id,
+    user_collection,
+    no_expansion=True,
+    top_by_designer=3,
+    results=5,
+    **kwargs,
 ):
     list_game_id_str = [str(x) for x in list_game_id]
     df_designer_best = run_query(
@@ -56,11 +74,19 @@ def get_designer_best(
                                     where game_id in ({','.join(list_game_id_str)}))
                 and b.id not in ({','.join([k["@objectid"] for k in user_collection if int(k["status"]["@own"])==1])})
                 and b.rating_users > 1000
+                {" and " + " and ".join([k+" "+str(v) for k,v in kwargs.items()])}
             order by bd.designer_id, b.rating DESC """,
     )
-    df_designer_score = df_designer_best[
-        df_designer_best["rank"].isin(list(range(1, top_by_designer + 1)))
-    ].sort_values("rating", ascending=False)
+    df_designer_score = (
+        df_designer_best[
+            df_designer_best["rank"].isin(list(range(1, top_by_designer + 1)))
+        ]
+        .sort_values("rating", ascending=False)
+        .drop_duplicates("name")
+    )
+    df_designer_score.loc[:, "name"] = (
+        df_designer_score.name + " (" + df_designer_score.id.apply(str) + ")"
+    )
     df_designer_top = df_designer_score.head(results)[
         ["name", "rating", "type"]
     ].reset_index(drop=True)
@@ -107,8 +133,10 @@ def get_mechanics_best(list_game_id, user_collection, no_expansion=True, results
         )
         .agg("sum")
         .sort_values(["count", "rating"], ascending=False)
+    ).drop_duplicates("id")
+    df_mechanics_score.loc[:, "name"] = (
+        df_mechanics_score.name + " (" + df_mechanics_score.id.apply(str) + ")"
     )
-
     df_mechanics_top = df_mechanics_score.head(results)[
         ["name", "rating", "type"]
     ].reset_index(drop=True)

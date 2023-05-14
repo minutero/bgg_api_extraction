@@ -3,26 +3,11 @@ import time
 import logging
 from modules.api_request import check_exists_db
 from config.db_connection import run_query
+from config.config import columns
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
-
-columns = [
-    "id",
-    "name",
-    "weight",
-    "rating",
-    "year",
-    "type",
-    "minplayers",
-    "maxplayers",
-    "age",
-    "minplaytime",
-    "maxplaytime",
-    "rating_users",
-    "weight_users",
-]
 
 
 class boardgame:
@@ -109,9 +94,15 @@ Published= {self.year}"""
 
 
 def save_games(list_ids: list):
-    list_games = [boardgame(id=ind_id) for ind_id in list_ids]
+    already_db = (
+        run_query(
+            f"select id from boardgames.boardgame where id in ({','.join(list_ids)})"
+        )
+        .id.apply(str)
+        .to_list()
+    )
     list_games = [
-        game for game in list_games if not check_exists_db(id=game.id, check_only=True)
+        boardgame(id=ind_id) for ind_id in list_ids if ind_id not in already_db
     ]
     logger.info(
         f"From all {len(list_ids)} games {len(list_games)} are going to be inserted in the database"

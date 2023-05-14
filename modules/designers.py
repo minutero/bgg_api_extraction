@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import logging
 from modules.boardgame import save_games
-from config.db_connection import run_query, create_connection
+from config.db_connection import run_query, df_to_db
 
 logger = logging.getLogger()
 logger = logging.getLogger(__name__)
@@ -49,48 +49,33 @@ def get_designers(url):
             lambda tag: tag.name == "a" and tag.has_attr("href")
         )
         designers_dict = {k["href"].split("/")[2]: k.string for k in designers_html}
-        designers_df = pd.DataFrame(designers_dict.items(), columns=["id", "designer"])
-        df_list.append(designers_df.astype({"id": "int32", "designer": "str"}))
+        designers_df = pd.DataFrame(designers_dict.items(), columns=["id", "name"])
+        df_list.append(designers_df.astype({"id": "int32", "name": "str"}))
     logger.info(f"Iteration complete on {str(i)} pages")
     df = pd.concat(df_list).drop_duplicates()
-    df.to_sql(
-        "designers",
-        create_connection(),
-        index=False,
-        if_exists="append",
-    )
+    df_to_db(df, "designers", "boardgames")
     driver.quit()
 
 
-def get_games_from_designer(name_list: list):
+def get_games_from_designer(id_list: list, name_list: list = None):
+    id_list_str = [str(x) for x in id_list]
+    if name_list is not None:
+        name_list = run_query(
+            f"""select name from boardgames.designer where id in ({",".join(id_list_str)})"""
+        ).name.to_list()
     count_designer = len(name_list)
     logger.info("###################################################")
     logger.info(f"Processing {count_designer} designers")
     logger.info("###################################################")
     i = 0
     driver = webdriver.Chrome(options=chrome_options)
-    for designer in name_list:
+    for id, designer in zip(id_list, name_list):
         i += 1
         logger.info("###################################################")
         logger.info(
-            f"Designer {str(i).zfill(2)}/{str(count_designer).zfill(2)}: Processing {designer}"
+            f"Designer {str(i).zfill(2)}/{str(count_designer).zfill(2)}: Processing {designer}({id})"
         )
         logger.info("###################################################")
-        if "'" in designer:
-            quote = '"'
-        else:
-            quote = "'"
-        df_id = run_query(
-            f"""select id from designers where designer = {quote}{designer}{quote}""",
-        )
-        if df_id.empty:
-            id = 0
-            logger.warning(
-                f"Designer {designer} is presenting issues to read from database"
-            )
-            continue
-        else:
-            id = df_id.loc[0][0]
 
         regex = re.compile("[^a-zA-Z\-]")
         new_name = regex.sub("", unidecode(designer).replace(" ", "-")).lower()

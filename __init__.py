@@ -9,15 +9,20 @@ from modules.designers import get_designers
 from config.config import designer_url
 from modules.db import db_init, save_list_network_to_db
 from config.db_connection import df_to_db, run_query
+from dotenv_vault import load_dotenv
+
+load_dotenv()
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 
-
+### CREATE TABLES IN DB
 db_init()
+### INSERT INFORMATION ON DESIGNERS TABLE
 get_designers(designer_url)
 
+### TOP 100 GAMES
 url = "https://boardgamegeek.com/browse/boardgame"
 req = requests.get(url)
 html = req.content
@@ -29,6 +34,7 @@ list_games_id = [k["href"].split("/")[2] for k in games_top100]
 save_list_network_to_db(list_games_id)
 
 
+### GAMES ALREADY DOWNLOADED
 def games_from_files():
     path_to_json = (
         r"C:\Users\NB-FSILVA\python_personal\bgg_api_extraction\all_games_json"
@@ -51,11 +57,15 @@ def games_from_files():
     for i, js in enumerate(json_to_process):
         if i % 100 == 0:
             logger.info(f"Processing file {js} ({i}/{total_n_process})")
-        with open(os.path.join(path_to_json, js)) as json_file:
-            json_text = json.load(json_file)
-            boardgame.append(boardgame_from_json(json_text))
-            mechanic.append(bg_mechanic_from_json(json_text))
-            designer.append(bg_designer_from_json(json_text))
+        try:
+            with open(os.path.join(path_to_json, js)) as json_file:
+                json_text = json.load(json_file)
+                boardgame.append(boardgame_from_json(json_text))
+                mechanic.append(bg_mechanic_from_json(json_text))
+                designer.append(bg_designer_from_json(json_text))
+        except:
+            logger.error(f"Error on file {js}")
+            return
     logger.info(f"Ready reading {total_n_process} files. Starting DB insert.")
     df_to_db(pd.concat(boardgame), "boardgame", "boardgames")
     df_to_db(
