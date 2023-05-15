@@ -2,10 +2,9 @@ import os
 import requests
 import xmltodict
 import logging
-import pandas as pd
+from unicodedata import normalize
 from typing import Dict, Mapping
 from config.config import url_base
-from config.db_connection import run_query
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -73,9 +72,16 @@ def get_from_name(name: str, replace_name: bool = True):
     return bg
 
 
-def get_from_id(id: int, replace_name: bool = True):
-    bg = {"id": id}
-    boardgame_info = bgg_api_call(call_type="thing", id=bg["id"])
+def get_from_id(id: int):
+    boardgame_info = bgg_api_call(call_type="thing", id=id)
+    bg = get_game(boardgame_info)
+    return bg
+
+
+def get_game(boardgame_info, replace_name: bool = True):
+    bg = {}
+    # ID
+    bg["id"] = int(boardgame_info["@id"])
     # WEIGHT
     bg["weight"] = float(
         boardgame_info["statistics"]["ratings"]["averageweight"]["@value"]
@@ -98,7 +104,16 @@ def get_from_id(id: int, replace_name: bool = True):
     bg["weight_users"] = int(
         boardgame_info["statistics"]["ratings"]["numweights"]["@value"]
     )
-
+    bg["designer"] = {
+        int(x["@id"]): normalize("NFKC", x["@value"])
+        for x in boardgame_info["link"]
+        if x["@type"] == "boardgamedesigner"
+    }
+    bg["mechanic"] = {
+        int(x["@id"]): x["@value"].replace("'s", "s").replace("'", '"')
+        for x in boardgame_info["link"]
+        if x["@type"] == "boardgamemechanic"
+    }
     if replace_name:
         # NAME
         names = boardgame_info["name"]
@@ -112,23 +127,10 @@ def get_from_id(id: int, replace_name: bool = True):
 def check_exists_db(
     name: str = None,
     id: int = None,
-    replace_name: bool = True,
-    check_only: bool = False,
 ):
-    bg = run_query(
-        f"SELECT * FROM boardgames.boardgame where name = '{name}' or id = {id if id else 0}"
-    )
-
-    if bg.empty:
-        if check_only:
-            return False
-        if id is not None:
-            bg = pd.json_normalize(get_from_id(id, replace_name))
-        elif name is not None:
-            bg = pd.json_normalize(get_from_name(name, replace_name))
-        else:
-            print("Name and ID are empty. Please provide at least one of them")
+    if id is not None:
+        return get_from_id(id)
+    elif name is not None:
+        return get_from_name(name)
     else:
-        if check_only:
-            return True
-    return bg.to_dict(orient="records")[0]
+        print("Name and ID are empty. Please provide at least one of them")

@@ -1,9 +1,11 @@
 import os
 import time
+import json
 import logging
-from modules.api_request import check_exists_db
+from modules.api_request import check_exists_db, get_game
 from config.db_connection import run_query
 from config.config import columns
+from typing import Mapping
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -26,6 +28,8 @@ class boardgame:
         maxplaytime: int = None,
         rating_users: int = None,
         weight_users: int = None,
+        designer: Mapping = {},
+        mechanic: Mapping = {},
     ):
         self.id = int(id) if id else id
         self.name = str(name).replace('"', "'") if name else name
@@ -40,6 +44,8 @@ class boardgame:
         self.maxplaytime = int(maxplaytime) if maxplaytime else maxplaytime
         self.rating_users = int(rating_users) if rating_users else rating_users
         self.weight_users = int(weight_users) if weight_users else weight_users
+        self.designer = designer
+        self.mechanic = mechanic
 
     def __str__(self):
         return f"""{self.type.title()}:
@@ -53,7 +59,22 @@ Published= {self.year}"""
         return f"{self.name}({self.id})"
 
     def get_boardgame_information(self):
-        bg_dict = check_exists_db(self.name, self.id)
+        path_to_json = os.getenv("path_jsons")
+        try:
+            json_files = [
+                pos_json
+                for pos_json in os.listdir(path_to_json)
+                if pos_json.endswith(".json")
+            ]
+        except:
+            json_files = []
+        game_file = f"game_{str(self.id).zfill(6)}.json"
+        if game_file not in json_files:
+            bg_dict = check_exists_db(self.name, self.id)
+        else:
+            with open(os.path.join(os.getenv("path_jsons"), game_file)) as json_file:
+                json_text = json.load(json_file)
+            bg_dict = get_game(json_text)
         self.id = int(bg_dict["id"])
         self.name = str(bg_dict["name"]).replace('"', "'")
         self.weight = float(bg_dict["weight"])
@@ -67,6 +88,8 @@ Published= {self.year}"""
         self.maxplaytime = int(bg_dict["maxplaytime"])
         self.rating_users = int(bg_dict["rating_users"])
         self.weight_users = int(bg_dict["weight_users"])
+        self.designer = bg_dict["designer"]
+        self.mechanic = bg_dict["mechanic"]
 
     def save_to_db(self):
         query = f"""INSERT INTO boardgames.boardgame({",".join(columns)})
@@ -91,16 +114,40 @@ Published= {self.year}"""
             ),
             execute_only=True,
         )
+        for designer_id, designer_name in self.designer.items():
+            sql = """INSERT INTO boardgames.bg_x_designer (game_id, designer_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT (game_id, designer_id) DO NOTHING
+                """
+            run_query(sql, execute_only=True, parameters=(self.id, designer_id))
+            sql = """INSERT INTO boardgames.designer (id, name)
+                    VALUES (%s, %s)
+                    ON CONFLICT (id) DO NOTHING
+                """
+            run_query(sql, execute_only=True, parameters=(designer_id, designer_name))
+
+        for mechanic_id, mechanic_name in self.mechanic.items():
+            sql = """INSERT INTO boardgames.bg_x_mechanic (game_id, mechanic_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT (game_id, mechanic_id) DO NOTHING
+                """
+            run_query(sql, execute_only=True, parameters=(self.id, mechanic_id))
+            sql = """INSERT INTO boardgames.mechanics (id, name)
+                    VALUES (%s, %s)
+                    ON CONFLICT (id) DO NOTHING
+                """
+            run_query(sql, execute_only=True, parameters=(mechanic_id, mechanic_name))
 
 
-def save_games(list_ids: list):
-    already_db = (
-        run_query(
-            f"select id from boardgames.boardgame where id in ({','.join(list_ids)})"
+def save_games(list_ids: list, already_db=None):
+    if not already_db:
+        already_db = (
+            run_query(
+                f"select id from boardgames.boardgame where id in ({','.join(list_ids)})"
+            )
+            .id.apply(str)
+            .to_list()
         )
-        .id.apply(str)
-        .to_list()
-    )
     list_games = [
         boardgame(id=ind_id) for ind_id in list_ids if ind_id not in already_db
     ]
@@ -109,6 +156,6 @@ def save_games(list_ids: list):
     )
     for game in list_games:
         game.get_boardgame_information()
+        logger.info(f"{game.name} is going to be inserted in database")
         game.save_to_db()
-        logger.info(f"{game.name} inserted in database")
         time.sleep(2)
