@@ -1,18 +1,16 @@
 import os
 import logging
-import sqlite3
-from sqlite3 import Error
-import pandas as pd
-from modules.api_request import get_from_id, get_from_name
-from modules.config import database
+from config.db_connection import run_query
+from modules.designers import get_games_from_designer
+from modules.boardgame import save_games
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 
 
-def db_init_(db_file=database):
-    create_db(db_file)
+def db_init():
+    """Creates the database if it does not exist"""
     query = """ CREATE TABLE IF NOT EXISTS boardgame (
                         id integer PRIMARY KEY,
                         name text NOT NULL,
@@ -26,79 +24,29 @@ def db_init_(db_file=database):
                         id integer PRIMARY KEY,
                         designer text
                                     );"""
-    run_query(query)
+    run_query(query, execute_only=True)
 
 
-def check_exists_db(
-    name: str = None,
-    id: int = None,
-    replace_name: bool = True,
-    check_only: bool = False,
-):
-    bg = run_query(
-        f"SELECT * FROM boardgame where name = '{name}' or id = {id if id else 0}",
-        execute_only=False,
+def save_list_network_to_db(list_games_id, maximum_in_db_to_load=1):
+    games = [str(game_id) for game_id in list_games_id]
+    save_games(games)
+
+    df_designer_download = run_query(
+        f"""with designer_in_list as (
+                select designer_id
+                from boardgames.bg_x_designer
+                where game_id in ({','.join(games)})
+                )
+            select dl.designer_id,
+                d.name,
+                count(distinct game_id)
+            from boardgames.bg_x_designer db
+            inner join boardgames.designer d on db.designer_id = d.id
+            inner join designer_in_list dl on db.designer_id = dl.designer_id
+            group by 1,2
+            having count(distinct game_id) <= {str(maximum_in_db_to_load)}""",
     )
 
-    if bg.empty:
-        if check_only:
-            return False
-        if id is not None:
-            bg = pd.json_normalize(get_from_id(id, replace_name))
-        elif name is not None:
-            bg = pd.json_normalize(get_from_name(name, replace_name))
-        else:
-            print("Name and ID are empty. Please provide at least one of them")
-    else:
-        if check_only:
-            return True
-    return bg.to_dict(orient="records")[0]
-
-
-def create_db(db_file):
-    """create a database connection to a SQLite database"""
-    conn = None
-    try:
-        conn = sqlite3.connect(db_file)
-        print(sqlite3.version)
-    except Error as e:
-        print(e)
-    finally:
-        if conn:
-            conn.close()
-
-
-def create_connection(db_file=database):
-    """create a database connection to the SQLite database
-        specified by db_file
-    :param db_file: database file
-    :return: Connection object or None
-    """
-    conn = None
-    try:
-        conn = sqlite3.connect(db_file)
-        return conn
-    except Error as e:
-        print(e)
-
-    return conn
-
-
-def run_query(query: str, execute_only: bool = True, parameters=None, db_file=database):
-    conn = create_connection(db_file)
-    c = conn.cursor()
-    if execute_only:
-        if parameters:
-            c.execute(query, parameters)
-        else:
-            c.execute(query)
-        conn.commit()
-        conn.close()
-        return True
-    else:
-        if parameters:
-            df = pd.read_sql_query(query, conn, params=parameters)
-        else:
-            df = pd.read_sql_query(query, conn)
-        conn.close()
-        return df
+    get_games_from_designer(
+        df_designer_download.designer_id.to_list(), df_designer_download.name.to_list()
+    )

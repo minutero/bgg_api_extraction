@@ -1,15 +1,53 @@
-import sys
+import argparse
 from modules.suggestions import suggest_games
+from dotenv_vault import load_dotenv
+
+load_dotenv()
+
+
+def main_args():
+    # Initialize parser
+    msg = "Adding description"
+    parser = argparse.ArgumentParser(description=msg)
+    parser.add_argument("-u", "--User", help="User from BGG to give recommendation")
+    parser.add_argument(
+        "-r",
+        "--Results",
+        default=5,
+        type=int,
+        help="Amount of games printed by recommendation's category",
+    )
+    parser.add_argument(
+        "-t",
+        "--Top",
+        default=5,
+        type=int,
+        help="Amount of games from user's collection to be used as the source of recommendation",
+    )
+    parser.add_argument(
+        "-s",
+        "--Sort",
+        default="rating",
+        help="Charateristic to be used for sorting the best games in the user's collection. Default 'Rating'",
+    )
+    parser.add_argument(
+        "-g",
+        "--GameStatus",
+        help="Game's status to be used as a filter when getting the user's collection",
+    )
+
+    return parser.parse_args()
 
 
 def main():
-    user = sys.argv[1]
-    game_status = sys.argv[2] if len(sys.argv) > 2 else {"own": 1, "stats": 1}
-    source = sys.argv[3] if len(sys.argv) > 3 else "rating"
-    amount = sys.argv[4] if len(sys.argv) > 4 else 5
-    top = sys.argv[5] if len(sys.argv) > 5 else 5
-
-    suggest_games(user, game_status, source, amount, top)
+    args = main_args()
+    suggest_games(
+        args.User,
+        game_status=args.GameStatus,
+        sort=args.Sort,
+        results=args.Results,
+        top=args.Top,
+    )
 
 
 if __name__ == "__main__":

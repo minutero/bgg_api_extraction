@@ -1,17 +1,28 @@
 from modules.api_request import bgg_api_call
-from modules.db import run_query
-from modules.designers import get_games_from_designer
-from modules.boardgame import save_games
+from modules.db import save_list_network_to_db
+from config.db_connection import run_query
 import pandas as pd
 import numpy as np
-import ast
+from config.config import columns
+from dotenv_vault import load_dotenv
+
+load_dotenv()
 
 
-def suggest_games(
-    user, game_status={"own": 1, "stats": 1}, source="rating", amount=5, top=5
-):
-    user_collection = bgg_api_call("collection", user, game_status)
-    games_from_user_network(user_collection)
+def suggest_games(user, **kwargs):
+    results = 5 if not kwargs.get("results") else kwargs.get("results")
+    top = 5 if not kwargs.get("top") else kwargs.get("top")
+    game_status_all = (
+        kwargs.get("game_status") | {"stats": 1}
+        if kwargs.get("game_status")
+        else {"stats": 1}
+    )
+    sort = "rating" if not kwargs.get("sort") else kwargs.get("sort")
+
+    filter_db = {k: v for k, v in kwargs.items() if k in columns}
+    user_collection = bgg_api_call("collection", user, game_status_all)
+    games_id = [x["@objectid"] for x in user_collection if x["@subtype"] == "boardgame"]
+    save_list_network_to_db(games_id)
     df_plays = (
         pd.DataFrame(
             [
@@ -25,125 +36,112 @@ def suggest_games(
     )
 
     list_top = list(
-        df_plays.sort_values([source, "numplays"], ascending=False).head(top)["id"]
+        df_plays.sort_values([sort, "numplays"], ascending=False).head(top)["id"]
     )
 
     df_designer = get_designer_best(
-        list_top, user_collection, amount=amount, top_by_designer=3
+        list_top, user_collection, results, True, 3, filter_db
     )
-    df_mechanic = get_mechanics_best(list_top, user_collection, amount=amount)
+    df_mechanic = get_mechanics_best(
+        list_top, user_collection, results, True, filter_db
+    )
     df_suggestion = pd.concat([df_designer, df_mechanic])
     print(df_suggestion)
     return df_suggestion
 
 
 def get_designer_best(
-    list_game_id, user_collection, no_expansion=True, top_by_designer=1, amount=5
+    list_game_id,
+    user_collection,
+    results,
+    no_expansion=True,
+    top_by_designer=3,
+    kwargs={},
 ):
     list_game_id_str = [str(x) for x in list_game_id]
     df_designer_best = run_query(
-        f"""select id,
-                        name,
-                        designer,
-                        rating,
-                        type,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY designer
-                            ORDER BY rating DESC
-                        ) as rank
-                from boardgame b
-                where {"type = 'boardgame' and " if no_expansion else ""}
-                    designer in (select distinct designer from boardgame b2 where id in ({','.join(list_game_id_str)}))
-                    and id not in ({','.join([k["@objectid"] for k in user_collection])})
-                order by designer,rating DESC """,
-        execute_only=False,
+        f"""select b.id,
+                    b.name,
+                    bd.designer_id,
+                    b.rating,
+                    b.type,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY bd.designer_id
+                        ORDER BY b.rating DESC
+                    ) as rank
+            from boardgames.boardgame b
+            inner join boardgames.bg_x_designer bd on b.id = bd.game_id
+            where {"type = 'boardgame' and " if no_expansion else ""}
+                bd.designer_id in (select distinct designer_id
+                                    from boardgames.bg_x_designer
+                                    where game_id in ({','.join(list_game_id_str)}))
+                and b.id not in ({','.join([k["@objectid"] for k in user_collection if int(k["status"]["@own"])==1])})
+                and b.rating_users > 1000
+                {" and " + " and ".join([k+" "+str(v) for k,v in kwargs.items()]) if kwargs else ""}
+            order by bd.designer_id, b.rating DESC """,
     )
-    df_designer_score = df_designer_best[
-        df_designer_best["rank"].isin(list(range(1, top_by_designer + 1)))
-    ].sort_values("rating", ascending=False)
-    df_designer_top = df_designer_score.head(amount)[
+    df_designer_score = (
+        df_designer_best[
+            df_designer_best["rank"].isin(list(range(1, top_by_designer + 1)))
+        ]
+        .sort_values("rating", ascending=False)
+        .drop_duplicates("name")
+    )
+    df_designer_score.loc[:, "name"] = (
+        df_designer_score.name + " (" + df_designer_score.id.apply(str) + ")"
+    )
+    df_designer_top = df_designer_score.head(results)[
         ["name", "rating", "type"]
     ].reset_index(drop=True)
     return df_designer_top.assign(recommendation="designer")
 
 
-def get_mechanics_best(list_game_id, user_collection, no_expansion=True, amount=5):
+def get_mechanics_best(
+    list_game_id, user_collection, results, no_expansion=True, kwargs={}
+):
     list_game_id_str = [str(x) for x in list_game_id]
-    df_mechanics = run_query(
-        f"select distinct mechanics from boardgame b where id in ({','.join(list_game_id_str)})",
-        execute_only=False,
-    )
-    list_mechanics = list(df_mechanics.mechanics.apply(ast.literal_eval))
-    all_mechanics = [str(item) for sublist in list_mechanics for item in sublist]
-    list_unique_mechanics = [*set(all_mechanics)]
-    dict_weight_mechanics = {x: all_mechanics.count(x) for x in list_unique_mechanics}
-    df_weight_mechanics = pd.DataFrame(
-        dict_weight_mechanics.items(), columns=["mechanic", "count"]
+    df_weight_mechanics = run_query(
+        f"""select mechanic_id, count(game_id) as "count"
+            from boardgames.bg_x_mechanic
+            where game_id in ({','.join(list_game_id_str)})
+            group by 1""",
     )
     df_mechanics_best = run_query(
-        f"""select id,
-                name,
-                rating,
-                type,
-                mechanics
-            from boardgame b
+        f"""select b.id,
+                    b.name,
+                    bd.mechanic_id,
+                    b.rating,
+                    b.type,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY bd.mechanic_id
+                        ORDER BY b.rating DESC
+                    ) as rank
+            from boardgames.boardgame b
+            inner join boardgames.bg_x_mechanic bd on b.id = bd.game_id
             where {"type = 'boardgame' and " if no_expansion else ""}
-                ({' or '.join([f"mechanics like '%{x}%'" for x in list_unique_mechanics])})
-                and id not in ({','.join([k["@objectid"] for k in user_collection])})""",
-        execute_only=False,
+                bd.mechanic_id in (select distinct mechanic_id
+                                    from boardgames.bg_x_mechanic
+                                    where game_id in ({','.join(list_game_id_str)}))
+                and b.id not in ({','.join([k["@objectid"] for k in user_collection if int(k["status"]["@own"])==1])})
+                and b.rating_users > 1000
+                {" and " + " and ".join([k+" "+str(v) for k,v in kwargs.items()]) if kwargs else ""}
+            order by bd.mechanic_id, b.rating DESC """
     )
-    lit_eval_if = lambda x: ast.literal_eval(x) if isinstance(x, str) else x
-    df_mechanics_best.loc[:, "mechanic"] = df_mechanics_best["mechanics"].apply(
-        lit_eval_if
-    )
-
-    df_mechanics_count = (
-        df_mechanics_best.explode("mechanic")
-        .merge(df_weight_mechanics, on="mechanic")
-        .drop(columns=["mechanic"])
-    )
+    df_mechanics_count = df_mechanics_best.merge(
+        df_weight_mechanics, on="mechanic_id"
+    ).drop(columns=["mechanic_id"])
     df_mechanics_score = (
         df_mechanics_count.groupby(
             [x for x in list(df_mechanics_count.columns) if x != "count"],
             as_index=False,
         )
         .agg("sum")
-        .sort_values("count", ascending=False)
+        .sort_values(["count", "rating"], ascending=False)
+    ).drop_duplicates("id")
+    df_mechanics_score.loc[:, "name"] = (
+        df_mechanics_score.name + " (" + df_mechanics_score.id.apply(str) + ")"
     )
-
-    df_mechanics_top = df_mechanics_score.head(amount)[
+    df_mechanics_top = df_mechanics_score.head(results)[
         ["name", "rating", "type"]
     ].reset_index(drop=True)
     return df_mechanics_top.assign(recommendation="mechanics")
-
-
-def games_from_user_network(user_collection):
-    games = [x["@objectid"] for x in user_collection if x["@subtype"] == "boardgame"]
-    save_games(games)
-
-    query = f"""select distinct designer
-                from boardgame
-                where id in ({','.join(games)})"""
-    df_designers = run_query(query, execute_only=False)
-
-    df_designer_game_count = run_query(
-        "select designer,count(*) as games_count from boardgame b group by 1",
-        execute_only=False,
-    )
-    df_designer_download = df_designers.merge(
-        df_designer_game_count, how="inner", on="designer"
-    )
-    df_designer_download = df_designer_download[df_designer_download.games_count == 1]
-    count_designer = len(df_designer_download)
-    print("###################################################")
-    print("Processing", count_designer, "designers")
-    print("###################################################")
-    i = 0
-    for designer in df_designer_download.to_dict("records"):
-        i += 1
-        print("###################################################")
-        print(
-            f"Designer {str(i).zfill(2)}/{str(count_designer).zfill(2)}: Processing {designer['designer']}"
-        )
-        print("###################################################")
-        get_games_from_designer(designer["designer"])

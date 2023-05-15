@@ -2,9 +2,9 @@ import os
 import requests
 import xmltodict
 import logging
-from typing import Dict, Mapping
 from unicodedata import normalize
-from modules.config import url_base
+from typing import Dict, Mapping
+from config.config import url_base
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -15,6 +15,7 @@ def bgg_api_call(
     call_type: str,
     id: int,
     extra_parameters: Mapping = {"stats": 1, "pagesize": 100},
+    verbose: bool = False,
 ) -> Dict:
     """Function to get information in XML from BGG API v2
 
@@ -49,9 +50,14 @@ def bgg_api_call(
     url = url_base + call_type
     parameters = {allowed_commands[call_type]: id} | extra_parameters
     response = requests.get(url=url, params=parameters)
-    logger.info(f"Getting information from API for {id}")
+    if verbose:
+        logger.info(f"Getting information from API for {id}")
 
-    return xmltodict.parse(response.content)["items"]["item"]
+    try:
+        return xmltodict.parse(response.content)["items"]["item"]
+    except:
+        logger.error(f"Failed getting information from API for {id}")
+        return {}
 
 
 def get_from_name(name: str, replace_name: bool = True):
@@ -66,33 +72,65 @@ def get_from_name(name: str, replace_name: bool = True):
     return bg
 
 
-def get_from_id(id: int, replace_name: bool = True):
-    bg = {"id": id}
-    boardgame_info = bgg_api_call(call_type="thing", id=bg["id"])
-    designer = [
-        normalize("NFKC", x["@value"])
+def get_from_id(id: int):
+    boardgame_info = bgg_api_call(call_type="thing", id=id)
+    bg = get_game(boardgame_info)
+    return bg
+
+
+def get_game(boardgame_info, replace_name: bool = True):
+    bg = {}
+    # ID
+    bg["id"] = int(boardgame_info["@id"])
+    # WEIGHT
+    bg["weight"] = float(
+        boardgame_info["statistics"]["ratings"]["averageweight"]["@value"]
+    )
+    # RATING
+    bg["rating"] = float(boardgame_info["statistics"]["ratings"]["average"]["@value"])
+    # YEAR
+    bg["year"] = int(boardgame_info["yearpublished"]["@value"])
+    # TYPE
+    bg["type"] = boardgame_info["@type"]
+    # MINPLAYERS
+    bg["minplayers"] = int(boardgame_info["minplayers"]["@value"])
+    bg["maxplayers"] = int(boardgame_info["maxplayers"]["@value"])
+    bg["age"] = int(boardgame_info["minage"]["@value"])
+    bg["minplaytime"] = int(boardgame_info["minplaytime"]["@value"])
+    bg["maxplaytime"] = int(boardgame_info["maxplaytime"]["@value"])
+    bg["rating_users"] = int(
+        boardgame_info["statistics"]["ratings"]["usersrated"]["@value"]
+    )
+    bg["weight_users"] = int(
+        boardgame_info["statistics"]["ratings"]["numweights"]["@value"]
+    )
+    bg["designer"] = {
+        int(x["@id"]): normalize("NFKC", x["@value"])
         for x in boardgame_info["link"]
         if x["@type"] == "boardgamedesigner"
-    ]
-    bg["designer"] = designer[0] if len(designer) > 0 else None
-    bg["mechanics"] = (
-        str(
-            [
-                x["@value"]
-                for x in boardgame_info["link"]
-                if x["@type"] == "boardgamemechanic"
-            ]
-        )
-        .replace("'s", "s")
-        .replace("'", '"')
-    )
-    bg["rating"] = float(boardgame_info["statistics"]["ratings"]["average"]["@value"])
-    bg["year_published"] = int(boardgame_info["yearpublished"]["@value"])
-    bg["type"] = str(boardgame_info["@type"])
+    }
+    bg["mechanic"] = {
+        int(x["@id"]): x["@value"].replace("'s", "s").replace("'", '"')
+        for x in boardgame_info["link"]
+        if x["@type"] == "boardgamemechanic"
+    }
     if replace_name:
+        # NAME
         names = boardgame_info["name"]
         if isinstance(names, list):
             bg["name"] = [x["@value"] for x in names if x["@type"] == "primary"][0]
         else:
             bg["name"] = names["@value"]
     return bg
+
+
+def check_exists_db(
+    name: str = None,
+    id: int = None,
+):
+    if id is not None:
+        return get_from_id(id)
+    elif name is not None:
+        return get_from_name(name)
+    else:
+        print("Name and ID are empty. Please provide at least one of them")

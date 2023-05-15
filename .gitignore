@@ -103,6 +103,7 @@ celerybeat.pid
 
 # Environments
 .env
+.environment
 .venv
 env/
 venv/
@@ -130,8 +131,12 @@ dmypy.json
 
 #Local files
 ejemplos/
+all_games_json/
+mage/
 
 #vscode
 .vscode/
 
 *.db
+
+chromedriver.exe
