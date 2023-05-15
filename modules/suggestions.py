@@ -19,6 +19,7 @@ def suggest_games(user, **kwargs):
     )
     sort = "rating" if not kwargs.get("sort") else kwargs.get("sort")
 
+    filter_db = {k: v for k, v in kwargs.items() if k in columns}
     user_collection = bgg_api_call("collection", user, game_status_all)
     games_id = [x["@objectid"] for x in user_collection if x["@subtype"] == "boardgame"]
     save_list_network_to_db(games_id)
@@ -39,9 +40,11 @@ def suggest_games(user, **kwargs):
     )
 
     df_designer = get_designer_best(
-        list_top, user_collection, results=results, **kwargs
+        list_top, user_collection, results, True, 3, filter_db
     )
-    df_mechanic = get_mechanics_best(list_top, user_collection, results=results)
+    df_mechanic = get_mechanics_best(
+        list_top, user_collection, results, True, filter_db
+    )
     df_suggestion = pd.concat([df_designer, df_mechanic])
     print(df_suggestion)
     return df_suggestion
@@ -50,10 +53,10 @@ def suggest_games(user, **kwargs):
 def get_designer_best(
     list_game_id,
     user_collection,
+    results,
     no_expansion=True,
     top_by_designer=3,
-    results=5,
-    **kwargs,
+    kwargs={},
 ):
     list_game_id_str = [str(x) for x in list_game_id]
     df_designer_best = run_query(
@@ -74,7 +77,7 @@ def get_designer_best(
                                     where game_id in ({','.join(list_game_id_str)}))
                 and b.id not in ({','.join([k["@objectid"] for k in user_collection if int(k["status"]["@own"])==1])})
                 and b.rating_users > 1000
-                {" and " + " and ".join([k+" "+str(v) for k,v in kwargs.items()])}
+                {" and " + " and ".join([k+" "+str(v) for k,v in kwargs.items()]) if kwargs else ""}
             order by bd.designer_id, b.rating DESC """,
     )
     df_designer_score = (
@@ -93,7 +96,9 @@ def get_designer_best(
     return df_designer_top.assign(recommendation="designer")
 
 
-def get_mechanics_best(list_game_id, user_collection, no_expansion=True, results=5):
+def get_mechanics_best(
+    list_game_id, user_collection, results, no_expansion=True, kwargs={}
+):
     list_game_id_str = [str(x) for x in list_game_id]
     df_weight_mechanics = run_query(
         f"""select mechanic_id, count(game_id) as "count"
@@ -101,7 +106,6 @@ def get_mechanics_best(list_game_id, user_collection, no_expansion=True, results
             where game_id in ({','.join(list_game_id_str)})
             group by 1""",
     )
-
     df_mechanics_best = run_query(
         f"""select b.id,
                     b.name,
@@ -120,9 +124,9 @@ def get_mechanics_best(list_game_id, user_collection, no_expansion=True, results
                                     where game_id in ({','.join(list_game_id_str)}))
                 and b.id not in ({','.join([k["@objectid"] for k in user_collection if int(k["status"]["@own"])==1])})
                 and b.rating_users > 1000
+                {" and " + " and ".join([k+" "+str(v) for k,v in kwargs.items()]) if kwargs else ""}
             order by bd.mechanic_id, b.rating DESC """
     )
-
     df_mechanics_count = df_mechanics_best.merge(
         df_weight_mechanics, on="mechanic_id"
     ).drop(columns=["mechanic_id"])
