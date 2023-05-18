@@ -27,7 +27,7 @@ def db_init():
     run_query(query, execute_only=True)
 
 
-def save_list_network_to_db(list_games_id, maximum_in_db_to_load=1):
+def save_list_network_to_db(list_games_id):
     games = [str(game_id) for game_id in list_games_id]
     save_games(games)
 
@@ -44,7 +44,7 @@ def save_list_network_to_db(list_games_id, maximum_in_db_to_load=1):
             inner join boardgames.designer d on db.designer_id = d.id
             inner join designer_in_list dl on db.designer_id = dl.designer_id
             group by 1,2
-            having count(distinct game_id) <= {str(maximum_in_db_to_load)}""",
+            """,
     )
 
     get_games_from_designer(
