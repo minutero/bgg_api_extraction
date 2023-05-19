@@ -27,9 +27,10 @@ def db_init():
     run_query(query, execute_only=True)
 
 
-def save_list_network_to_db(list_games_id):
+def save_list_network_to_db(list_games_id, *args):
+    verbose = args[0] if args else False
     games = [str(game_id) for game_id in list_games_id]
-    save_games(games)
+    save_games(games, verbose=verbose)
 
     df_designer_download = run_query(
         f"""with designer_in_list as (
@@ -48,5 +49,7 @@ def save_list_network_to_db(list_games_id):
     )
 
     get_games_from_designer(
-        df_designer_download.designer_id.to_list(), df_designer_download.name.to_list()
+        df_designer_download.designer_id.to_list(),
+        df_designer_download.name.to_list(),
+        verbose=verbose,
     )

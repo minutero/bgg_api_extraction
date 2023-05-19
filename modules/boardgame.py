@@ -49,11 +49,11 @@ class boardgame:
 
     def __str__(self):
         return f"""{self.type.title()}:
-ID= {self.id}
-Name= {self.name}
-Rating= {self.rating}
-Weight= {self.weight}
-Published= {self.year}"""
+ID = {self.id}
+Name = {self.name}
+Rating = {self.rating}
+Weight = {self.weight}
+Published = {self.year}"""
 
     def __repr__(self):
         return f"{self.name}({self.id})"
@@ -139,7 +139,7 @@ Published= {self.year}"""
             run_query(sql, execute_only=True, parameters=(mechanic_id, mechanic_name))
 
 
-def save_games(list_ids: list, already_db=None):
+def save_games(list_ids: list, already_db=None, verbose=False):
     if not already_db:
         already_db = (
             run_query(
@@ -151,9 +151,10 @@ def save_games(list_ids: list, already_db=None):
     list_games = [
         boardgame(id=ind_id) for ind_id in list_ids if ind_id not in already_db
     ]
-    logger.info(
-        f"From all {len(list_ids)} games {len(list_games)} are going to be inserted in the database"
-    )
+    if verbose:
+        logger.info(
+            f"From all {len(list_ids)} games {len(list_games)} are going to be inserted in the database"
+        )
     for game in list_games:
         game.get_boardgame_information()
         logger.info(f"{game.name} is going to be inserted in database")

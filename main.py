@@ -1,8 +1,13 @@
+import os
 import argparse
+import logging
 from modules.suggestions import suggest_games
 from dotenv_vault import load_dotenv
 
 load_dotenv()
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 
 
 def main_args():
@@ -35,18 +40,27 @@ def main_args():
         "--GameStatus",
         help="Game's status to be used as a filter when getting the user's collection",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        help="Increase output verbosity",
+        action="store_true",
+    )
 
     return parser.parse_args()
 
 
 def main():
     args = main_args()
+    if args.verbose:
+        logger.info("Verbosity turned on")
     suggest_games(
         args.User,
         game_status=args.GameStatus,
         sort=args.Sort,
         results=args.Results,
         top=args.Top,
+        verbose=args.verbose,
     )
 
 
