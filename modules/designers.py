@@ -76,22 +76,23 @@ def get_games_from_designer(
     id_list_str = [str(x) for x in id_list]
     list_designers_full = run_query(
         f"""select d.id
-                                from boardgames.designer d
-                                inner join boardgames.bg_x_designer bd on d.id  = bd.designer_id
-                                where id in ({",".join(id_list_str)})
-                                group by d.id,d.total_games
-                                having count(bd.game_id) = d.total_games"""
+            from boardgames.designer d
+            inner join boardgames.bg_x_designer bd on d.id  = bd.designer_id
+            where d.id in ({",".join(id_list_str)})
+            group by d.id,d.total_games
+            having count(bd.game_id) = d.total_games or count(bd.game_id) >= 25"""
     ).id.to_list()
     list_designer_process = [des for des in id_list if des not in list_designers_full]
-    if name_list is not None:
+    if name_list is not None and list_designer_process:
         name_list = run_query(
-            f"""select name from boardgames.designer where id in ({",".join([str(x) for x in list_designer_process])})"""
+            f"""select name from boardgames.designer
+            where id in ({",".join([str(x) for x in list_designer_process])})"""
         ).name.to_list()
     count_designer = len(name_list)
     if verbose:
         logger.info("###################################################")
         logger.info(
-            f"From {len(list_designer_process)} designers only {count_designer} have missing games"
+            f"From {count_designer} designers only {len(list_designer_process)} have missing games"
         )
         logger.info("###################################################")
     i = 0
