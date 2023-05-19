@@ -8,8 +8,8 @@ import numpy as np
 def game_buy_score(
     game_id: int,
     user: str,
+    weight: float,
     sort: str = "rating",
-    weight: float = 0.9,
     verbose=False,
     **kwargs,
 ) -> float:
@@ -81,8 +81,9 @@ def game_buy_score(
     score = game_designer_score * wn + game_mechanic_score * wr
     if verbose:
         print(
-            f"""Buying Score for {bg.name} is {score}.
-                {round(game_designer_score,2)}*{round(wn,2) + round(game_mechanic_score,2)}*{round(wr,2)}"""
+            f"""Buying Score for {bg.name} is {score}
+                Designer Score: {round(game_designer_score,2)} ({round(wn*100,1)}%)
+                Mechanic Score: {round(game_mechanic_score,2)} ({round(wr*100,1)}%)"""
         )
     else:
         return score
