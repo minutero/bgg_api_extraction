@@ -12,7 +12,6 @@ load_dotenv()
 
 def suggest_games(user, **kwargs) -> DataFrame:
     results = 5 if not kwargs.get("results") else kwargs.get("results")
-    top = 5 if not kwargs.get("top") else kwargs.get("top")
     game_status_all = (
         kwargs.get("game_status") | {"stats": 1}
         if kwargs.get("game_status")
@@ -37,6 +36,7 @@ def suggest_games(user, **kwargs) -> DataFrame:
         .astype({"id": int, "numplays": int, "rating": float})
     )
 
+    top = len(games_id) if not kwargs.get("top") else kwargs.get("top")
     list_top = list(
         df_plays.sort_values([sort, "numplays"], ascending=False).head(top)["id"]
     )
