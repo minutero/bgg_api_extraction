@@ -55,8 +55,10 @@ def bgg_api_call(
 
     try:
         return xmltodict.parse(response.content)["items"]["item"]
-    except:
-        logger.error(f"Failed getting information from API for {id}")
+    except Exception as e:
+        if verbose:
+            logger.error(f"Failed getting information from API for {id}")
+            logger.error(f"{e}")
         return {}
 
 

@@ -11,7 +11,9 @@ import pandas as pd
 import logging
 from modules.boardgame import save_games
 from config.db_connection import run_query, df_to_db
+from dotenv_vault import load_dotenv
 
+load_dotenv()
 logger = logging.getLogger()
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
@@ -23,7 +25,7 @@ chrome_options.add_argument("--log-level=OFF")
 
 def get_designers(url):
     url_page = url + "/page/21"
-    driver = webdriver.Chrome()
+    driver = webdriver.Chrome(options=chrome_options)
     time.sleep(2)
     driver.get(url_page)
     driver.find_element(By.ID, "inputUsername").send_keys(os.environ.get("bgg_user"))
@@ -48,51 +50,86 @@ def get_designers(url):
         designers_html = bs.table.findAll(
             lambda tag: tag.name == "a" and tag.has_attr("href")
         )
-        designers_dict = {k["href"].split("/")[2]: k.string for k in designers_html}
+        already_in_db = run_query(f"select id from boardgames.designer")
+        designers_dict = {
+            int(k["href"].split("/")[2]): k.string
+            for k in designers_html
+            if int(k["href"].split("/")[2]) not in already_in_db.id.to_list()
+        }
         designers_df = pd.DataFrame(designers_dict.items(), columns=["id", "name"])
-        df_list.append(designers_df.astype({"id": "int32", "name": "str"}))
+        df_to_db(designers_df, "designer", "boardgames")
+        get_games_from_designer(
+            designers_df.id.to_list(),
+            designers_df.name.to_list(),
+            only_total=True,
+        )
     logger.info(f"Iteration complete on {str(i)} pages")
-    df = pd.concat(df_list).drop_duplicates()
-    df_to_db(df, "designers", "boardgames")
     driver.quit()
 
 
-def get_games_from_designer(id_list: list, name_list: list = None):
+def get_games_from_designer(
+    id_list: list,
+    name_list: list = None,
+    only_total: bool = False,
+    verbose: bool = False,
+):
     id_list_str = [str(x) for x in id_list]
-    if name_list is not None:
+    list_designers_full = run_query(
+        f"""select d.id
+            from boardgames.designer d
+            inner join boardgames.bg_x_designer bd on d.id  = bd.designer_id
+            where d.id in ({",".join(id_list_str)})
+            group by d.id,d.total_games
+            having count(bd.game_id) = d.total_games or count(bd.game_id) >= 25"""
+    ).id.to_list()
+    list_designer_process = [des for des in id_list if des not in list_designers_full]
+    if name_list is not None and list_designer_process:
         name_list = run_query(
-            f"""select name from boardgames.designer where id in ({",".join(id_list_str)})"""
+            f"""select name from boardgames.designer
+            where id in ({",".join([str(x) for x in list_designer_process])})"""
         ).name.to_list()
     count_designer = len(name_list)
-    logger.info("###################################################")
-    logger.info(f"Processing {count_designer} designers")
-    logger.info("###################################################")
-    i = 0
-    driver = webdriver.Chrome(options=chrome_options)
-    for id, designer in zip(id_list, name_list):
-        i += 1
+    if verbose:
         logger.info("###################################################")
         logger.info(
-            f"Designer {str(i).zfill(2)}/{str(count_designer).zfill(2)}: Processing {designer}({id})"
+            f"From {count_designer} designers only {len(list_designer_process)} have missing games"
         )
         logger.info("###################################################")
+    i = 0
+    browser = webdriver.Chrome(options=chrome_options)
+    for id, designer in zip(list_designer_process, name_list):
+        i += 1
+        if verbose:
+            logger.info("###################################################")
+            logger.info(
+                f"Designer {str(i).zfill(2)}/{str(count_designer).zfill(2)}: Processing {designer}({id})"
+            )
+            logger.info("###################################################")
 
-        regex = re.compile("[^a-zA-Z\-]")
+        regex = re.compile("[^\w-]")
         new_name = regex.sub("", unidecode(designer).replace(" ", "-")).lower()
         url_designer = f"https://boardgamegeek.com/boardgamedesigner/{id}/{new_name}"
         url_best_rank_games = "/linkeditems/boardgamedesigner?pageid=1&sort=rank"
 
+        browser.get(url_designer + url_best_rank_games)
         time.sleep(2)
-        driver.get(url_designer + url_best_rank_games)
-        html = driver.page_source
+        html = browser.page_source
 
         bs = BeautifulSoup(html, features="html.parser")
         designer_games_url = bs.findAll("div", class_="media-left")
+        total_games = int(
+            re.sub("[^0-9]", "", bs.find("strong", class_="ng-binding").text)
+        )
         designer_games = [
             game_url.find("a")["href"].split("/")[2] for game_url in designer_games_url
         ]
         if len(designer_games) == 0:
             logger.warning(f"Designer {designer} does not have any games")
         else:
-            save_games(designer_games)
-    driver.quit()
+            run_query(
+                f"update boardgames.designer set total_games = {int(total_games)} where id = {int(id)}",
+                execute_only=True,
+            )
+            if not only_total:
+                save_games(designer_games)
+    browser.quit()
