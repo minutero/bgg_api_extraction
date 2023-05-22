@@ -40,9 +40,8 @@ def main_args():
     parser.add_argument(
         "-t",
         "--Top",
-        default=5,
         type=int,
-        help="Amount of games from user's collection to be used as the source of recommendation",
+        help="Amount of games from user's collection to be used as the source of recommendation. Default: All Games",
     )
     parser.add_argument(
         "-s",
@@ -53,6 +52,7 @@ def main_args():
     parser.add_argument(
         "-m",
         "--GameStatus",
+        default={"own": 1},
         help="Game's status to be used as a filter when getting the user's collection",
     )
     parser.add_argument(

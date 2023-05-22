@@ -2,6 +2,7 @@ import os
 import requests
 import xmltodict
 import logging
+import json
 from unicodedata import normalize
 from typing import Dict, Mapping
 from config.config import url_base
@@ -75,7 +76,15 @@ def get_from_name(name: str, replace_name: bool = True):
 
 
 def get_from_id(id: int):
+    path_to_json = os.getenv("path_jsons")
     boardgame_info = bgg_api_call(call_type="thing", id=id)
+    try:
+        with open(
+            os.path.join(path_to_json, f"game_{str(id).zfill(6)}.json"), "w"
+        ) as f:
+            json.dump(boardgame_info, f)
+    except:
+        pass
     bg = get_game(boardgame_info)
     return bg
 
