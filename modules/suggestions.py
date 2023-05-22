@@ -58,8 +58,12 @@ def suggest_games(user, **kwargs) -> DataFrame:
         if user_collection
         else "0"
     )
-    df_designer = get_designer_best(list_top, own_games, results, True, 3, filter_db)
-    df_mechanic = get_mechanics_best(list_top, own_games, results, True, filter_db)
+    df_designer = get_designer_best(
+        list_top, own_games, results, True, 3, True, filter_db
+    )
+    df_mechanic = get_mechanics_best(
+        list_top, own_games, results, True, True, filter_db
+    )
     df_suggestion = pd.concat([df_designer, df_mechanic])
     if verbose:
         print(df_suggestion)
@@ -72,6 +76,7 @@ def get_designer_best(
     results=5,
     no_expansion=True,
     top_by_designer=3,
+    remove_similar=True,
     kwargs={},
 ):
     list_game_id_str = [str(x) for x in list_game_id]
@@ -96,7 +101,10 @@ def get_designer_best(
                 {" and " + " and ".join([k+" "+str(v) for k,v in kwargs.items()]) if kwargs else ""}
             order by bd.designer_id, b.rating DESC """,
     )
-    df_designer_best = remove_similar_games(df_designer_best, list(own_games.values()))
+    if remove_similar:
+        df_designer_best = remove_similar_games(
+            df_designer_best, list(own_games.values())
+        )
 
     df_designer_score = (
         df_designer_best[
@@ -115,7 +123,12 @@ def get_designer_best(
 
 
 def get_mechanics_best(
-    list_game_id, own_games=None, results=5, no_expansion=True, kwargs={}
+    list_game_id,
+    own_games=None,
+    results=5,
+    no_expansion=True,
+    remove_similar=True,
+    kwargs={},
 ):
     list_game_id_str = [str(x) for x in list_game_id]
     df_weight_mechanics = run_query(
@@ -145,9 +158,10 @@ def get_mechanics_best(
                 {" and " + " and ".join([k+" "+str(v) for k,v in kwargs.items()]) if kwargs else ""}
             order by bd.mechanic_id, b.rating DESC """
     )
-    df_mechanics_best = remove_similar_games(
-        df_mechanics_best, list(own_games.values())
-    )
+    if remove_similar:
+        df_mechanics_best = remove_similar_games(
+            df_mechanics_best, list(own_games.values())
+        )
 
     df_mechanics_count = df_mechanics_best.merge(
         df_weight_mechanics, on="mechanic_id"
