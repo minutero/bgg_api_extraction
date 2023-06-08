@@ -140,3 +140,5 @@ mage/
 *.db
 
 chromedriver.exe
+
+users_games_to_gsheets.py
