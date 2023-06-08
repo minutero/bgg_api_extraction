@@ -63,14 +63,16 @@ def bgg_api_call(
         return {}
 
 
-def get_from_name(name: str, replace_name: bool = True):
+def get_from_name(name: str):
     boardgame_search = bgg_api_call(
         call_type="search",
         id=name,
-        extra_parameters={"exact": 1, "type": "boardgame"},
+        extra_parameters={"type": "boardgame"},
     )
+    if isinstance(boardgame_search, list):
+        boardgame_search = boardgame_search[0]
     id = int(boardgame_search["@id"])
-    bg = get_from_id(id, replace_name)
+    bg = get_from_id(id)
 
     return bg
 
