@@ -17,7 +17,7 @@ def suggest_games(user, **kwargs) -> DataFrame:
     game_status_all = (
         kwargs.get("game_status") | {"stats": 1}
         if kwargs.get("game_status")
-        else {"stats": 1}
+        else {"own": 1, "stats": 1}
     )
     sort = "rating" if not kwargs.get("sort") else kwargs.get("sort")
     verbose = False if not kwargs.get("verbose") else kwargs.get("verbose")
@@ -45,10 +45,18 @@ def suggest_games(user, **kwargs) -> DataFrame:
         .replace("N/A", np.nan)
         .astype({"id": int, "numplays": int, "rating": float})
     )
-    top = len(games_id) if not kwargs.get("top") else kwargs.get("top")
-    list_top = list(
-        df_plays.sort_values([sort, "numplays"], ascending=False).head(top)["id"]
-    )
+    if not kwargs.get("top"):
+        tot = len(df_plays)
+        if (
+            df_plays.isna().sum()["numplays"] == tot
+            and df_plays.isna().sum()["rating"] == tot
+        ):
+            top = tot
+        else:
+            top = 10
+    else:
+        kwargs.get("top")
+    list_rank = df_plays.sort_values([sort, "numplays"], ascending=False)["id"]
     own_games = (
         {
             str(k["@objectid"]): k["name"]["#text"]
@@ -59,10 +67,10 @@ def suggest_games(user, **kwargs) -> DataFrame:
         else "0"
     )
     df_designer = get_designer_best(
-        list_top, own_games, results, True, 3, True, filter_db
+        list(list_rank.head(top)), own_games, results, True, 3, True, filter_db
     )
     df_mechanic = get_mechanics_best(
-        list_top, own_games, results, True, True, filter_db
+        list(list_rank.head(top)), own_games, results, True, True, filter_db
     )
     df_suggestion = pd.concat([df_designer, df_mechanic])
     if verbose:
@@ -168,12 +176,12 @@ def get_mechanics_best(
     ).drop(columns=["mechanic_id"])
     df_mechanics_score = (
         df_mechanics_count.groupby(
-            [x for x in list(df_mechanics_count.columns) if x != "count"],
+            [x for x in list(df_mechanics_count.columns) if x not in ["count", "rank"]],
             as_index=False,
         )
         .agg("sum")
         .sort_values(["count", "rating"], ascending=False)
-    ).drop_duplicates("id")
+    )
     df_mechanics_score.loc[:, "name"] = (
         df_mechanics_score.name + " (" + df_mechanics_score.id.apply(str) + ")"
     )

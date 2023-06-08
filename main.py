@@ -3,6 +3,7 @@ import argparse
 import logging
 from modules.suggestions import suggest_games
 from modules.likelihood_score import game_buy_score
+from modules.api_request import get_from_name
 from dotenv_vault import load_dotenv
 
 load_dotenv()
@@ -19,8 +20,6 @@ def main_args():
     parser.add_argument(
         "-g",
         "--GameScore",
-        type=int,
-        default=0,
         help="Game Score for a specific User. You need to provide the game ID here",
     )
     parser.add_argument(
@@ -70,9 +69,13 @@ def main():
     if args.verbose:
         logger.info("Verbosity turned on")
     if args.GameScore:
+        if isinstance(args.GameScore, int):
+            game_id = args.GameScore
+        else:
+            game_id = get_from_name(args.GameScore)["id"]
         logger.info("Calculating Game Score")
         game_buy_score(
-            args.GameScore,
+            game_id,
             args.User,
             args.Weight,
             args.Sort,

@@ -96,7 +96,8 @@ def get_games_from_designer(
         )
         logger.info("###################################################")
     i = 0
-    browser = webdriver.Chrome(options=chrome_options)
+    if len(list_designer_process):
+        browser = webdriver.Chrome(options=chrome_options)
     for id, designer in zip(list_designer_process, name_list):
         i += 1
         if verbose:
@@ -132,4 +133,5 @@ def get_games_from_designer(
             )
             if not only_total:
                 save_games(designer_games)
-    browser.quit()
+    if len(list_designer_process):
+        browser.quit()

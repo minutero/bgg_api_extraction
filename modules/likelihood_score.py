@@ -39,7 +39,7 @@ def game_buy_score(
         .replace("N/A", np.nan)
         .astype({"game_id": int, "numplays": float, "rating": float})
         .fillna({"rating": 0})
-    ).sort_values([sort, "numplays"], ascending=False)
+    )
     df_boardgame = run_query(
         f"""select bm.game_id
                     ,m."name" as mechanic
@@ -50,7 +50,9 @@ def game_buy_score(
                     inner join boardgames.designer d on bd.designer_id = d.id
                 where bm.game_id in ({",".join(games_id)})"""
     )
-    df_all = df_boardgame.merge(df_plays, on="game_id")
+    df_all = df_boardgame.merge(df_plays, on="game_id").sort_values(
+        [sort, "numplays"], ascending=False
+    )
     max_plays = df_all.numplays.max()
     wr = weight if sort == "rating" else 1 - weight
     wn = 1.0 - wr
@@ -66,8 +68,7 @@ def game_buy_score(
         .sort_values("score", ascending=False)
     )
     designer_score = (
-        df_all[["designer", "score"]]
-        .drop_duplicates()
+        df_all.drop_duplicates(["game_id", "designer"])[["designer", "score"]]
         .groupby("designer")
         .sum()
         .sort_values("score", ascending=False)
@@ -78,12 +79,10 @@ def game_buy_score(
     game_designer_score = designer_score[
         designer_score.index.isin(bg.designer.values())
     ].sum()[0]
-    score = game_designer_score * wn + game_mechanic_score * wr
+    score = game_designer_score + game_mechanic_score
     if verbose:
         print(
-            f"""Buying Score for {bg.name} is {score}
-                Designer Score: {round(game_designer_score,2)} ({round(wn*100,1)}%)
-                Mechanic Score: {round(game_mechanic_score,2)} ({round(wr*100,1)}%)"""
+            f"""Buying Score for {bg.name} is {score} (M: {round(game_mechanic_score,2)} + D: {round(game_designer_score,2)})"""
         )
     else:
         return score
