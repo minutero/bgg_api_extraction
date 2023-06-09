@@ -1,3 +1,4 @@
+import re
 from modules.api_request import bgg_api_call
 from modules.db import save_list_network_to_db
 from config.db_connection import run_query
@@ -20,9 +21,23 @@ def suggest_games(user, **kwargs) -> DataFrame:
         else {"own": 1, "stats": 1}
     )
     sort = "rating" if not kwargs.get("sort") else kwargs.get("sort")
+    remove = "" if not kwargs.get("remove") else kwargs.get("remove")
+    where = [] if not kwargs.get("where") else kwargs.get("where")
     verbose = False if not kwargs.get("verbose") else kwargs.get("verbose")
 
-    filter_db = {k: v for k, v in kwargs.items() if k in columns}
+    remove_ids = {"id": remove.split(",")} if remove else {}
+
+    rep = {"gt": ">", "ge": ">=", "lt": "<", "le": "<=", "eq": "=", "ne": "<>"}
+    pattern = re.compile("|".join(rep.keys()))
+    f = lambda m: rep[re.escape(m.group(0))]
+    where_sql_symbol = [pattern.sub(f, c).replace(".", " ") for c in where]
+
+    where_clause = {
+        k.split(" ")[0]: " ".join(k.split(" ")[1:])
+        for k in where_sql_symbol
+        if k.split(" ")[0] in columns
+    }
+    filter_db = where_clause | remove_ids
     user_collection = bgg_api_call("collection", user, game_status_all)
     games_id = [x["@objectid"] for x in user_collection if x["@subtype"] == "boardgame"]
     save_list_network_to_db(games_id, verbose)
@@ -106,7 +121,11 @@ def get_designer_best(
                                     where game_id in ({','.join(list_game_id_str)}))
                 and b.id not in ({",".join(own_games.keys())})
                 and b.rating_users > 1000
-                {" and " + " and ".join([k+" "+str(v) for k,v in kwargs.items()]) if kwargs else ""}
+                {" and " + (
+                    " and ".join([k + " " + v if not isinstance(v,list)
+                                    else k + " not in (" + ", ".join(v) + ")"
+                                    for k, v in kwargs.items()
+                                ])) if kwargs else ""}
             order by bd.designer_id, b.rating DESC """,
     )
     if remove_similar:
@@ -163,7 +182,11 @@ def get_mechanics_best(
                                     where game_id in ({','.join(list_game_id_str)}))
                 and b.id not in ({",".join(own_games.keys())})
                 and b.rating_users > 1000
-                {" and " + " and ".join([k+" "+str(v) for k,v in kwargs.items()]) if kwargs else ""}
+                {" and " + (
+                    " and ".join([k + " " + v if not isinstance(v,list)
+                                    else k + " not in (" + ", ".join(v) + ")"
+                                    for k, v in kwargs.items()
+                                ])) if kwargs else ""}
             order by bd.mechanic_id, b.rating DESC """
     )
     if remove_similar:

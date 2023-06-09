@@ -15,7 +15,9 @@ logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 def main_args():
     # Initialize parser
     msg = "Adding description"
-    parser = argparse.ArgumentParser(description=msg)
+    parser = argparse.ArgumentParser(
+        description=msg, formatter_class=argparse.RawTextHelpFormatter
+    )
     parser.add_argument("-u", "--User", help="User from BGG to give recommendation")
     parser.add_argument(
         "-g",
@@ -27,7 +29,9 @@ def main_args():
         "--Weight",
         type=float,
         default=1,
-        help="Weight for Mechancs Score when calculating the final Score. The difference to 1 is used for the Designer Score weight. Use a number between 0 and 1.",
+        help="Weight for Mechancs Score when calculating the final Score.\n"
+        "Use a number between 0 and 1.\n"
+        "The difference to 1 is used for the Designer Score weight.",
     )
     parser.add_argument(
         "-r",
@@ -60,6 +64,41 @@ def main_args():
         help="Increase output verbosity",
         action="store_true",
     )
+    parser.add_argument(
+        "-o",
+        "--RemoveGame",
+        help="List of Games to remove from suggestion. List all games separated by comma.",
+    )
+    parser.add_argument(
+        "-f",
+        "--Where",
+        action="store",
+        nargs="*",
+        help="Where clause for SQL of games to include.\n"
+        "Use spaces to separate each clause and points to separate each word in the clause\n\n"
+        "e.g. column1.comparison1.value1 column2.comparison2.value2\n\n"
+        "For comparison only use:\n"
+        "   gt for greater than\n"
+        "   ge for greater or equal than\n"
+        "   lt for lower than\n"
+        "   le for lower or equal than\n"
+        "   eq for equal\n"
+        "   ne for not equal\n\n"
+        "Valid Columns are:\n"
+        "   id\n"
+        "   name\n"
+        "   weight\n"
+        "   rating\n"
+        "   year\n"
+        "   type\n"
+        "   minplayers\n"
+        "   maxplayers\n"
+        "   age\n"
+        "   minplaytime\n"
+        "   maxplaytime\n"
+        "   rating_users\n"
+        "   weight_users\n",
+    )
 
     return parser.parse_args()
 
@@ -90,6 +129,8 @@ def main():
             sort=args.Sort,
             results=args.Results,
             top=args.Top,
+            remove=args.RemoveGame,
+            where=args.Where,
             verbose=args.verbose,
         )
 
