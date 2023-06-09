@@ -14,6 +14,7 @@ load_dotenv()
 
 
 def suggest_games(user, **kwargs) -> DataFrame:
+    # Console parameters to variables
     results = 5 if not kwargs.get("results") else kwargs.get("results")
     game_status_all = (
         kwargs.get("game_status") | {"stats": 1}
@@ -26,18 +27,16 @@ def suggest_games(user, **kwargs) -> DataFrame:
     verbose = False if not kwargs.get("verbose") else kwargs.get("verbose")
 
     remove_ids = {"id": remove.split(",")} if remove else {}
-
+    # Transform where parameter to SQL syntax
     rep = {"gt": ">", "ge": ">=", "lt": "<", "le": "<=", "eq": "=", "ne": "<>"}
     pattern = re.compile("|".join(rep.keys()))
     f = lambda m: rep[re.escape(m.group(0))]
-    where_sql_symbol = [pattern.sub(f, c).replace(".", " ") for c in where]
-
+    where_sql_symbol = [pattern.sub(f, c).replace("+", " ") for c in where]
     where_clause = {
         k.split(" ")[0]: " ".join(k.split(" ")[1:])
         for k in where_sql_symbol
         if k.split(" ")[0] in columns
-    }
-    filter_db = where_clause | remove_ids
+    } | remove_ids
     user_collection = bgg_api_call("collection", user, game_status_all)
     games_id = [x["@objectid"] for x in user_collection if x["@subtype"] == "boardgame"]
     save_list_network_to_db(games_id, verbose)
@@ -70,7 +69,7 @@ def suggest_games(user, **kwargs) -> DataFrame:
         else:
             top = 10
     else:
-        kwargs.get("top")
+        top = kwargs.get("top")
     list_rank = df_plays.sort_values([sort, "numplays"], ascending=False)["id"]
     own_games = (
         {
@@ -82,10 +81,10 @@ def suggest_games(user, **kwargs) -> DataFrame:
         else "0"
     )
     df_designer = get_designer_best(
-        list(list_rank.head(top)), own_games, results, True, 3, True, filter_db
+        list(list_rank.head(top)), own_games, results, True, 3, True, where_clause
     )
     df_mechanic = get_mechanics_best(
-        list(list_rank.head(top)), own_games, results, True, True, filter_db
+        list(list_rank.head(top)), own_games, results, True, True, where_clause
     )
     df_suggestion = pd.concat([df_designer, df_mechanic])
     if verbose:
