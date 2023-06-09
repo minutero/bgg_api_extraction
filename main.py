@@ -29,7 +29,7 @@ def main_args():
         "--Weight",
         type=float,
         default=1,
-        help="Weight for Mechancs Score when calculating the final Score.\n"
+        help="Weight for Mechanics Score when calculating the final Score.\n"
         "Use a number between 0 and 1.\n"
         "The difference to 1 is used for the Designer Score weight.",
     )
@@ -75,8 +75,8 @@ def main_args():
         action="store",
         nargs="*",
         help="Where clause for SQL of games to include.\n"
-        "Use spaces to separate each clause and points to separate each word in the clause\n\n"
-        "e.g. column1.comparison1.value1 column2.comparison2.value2\n\n"
+        "Use spaces to separate each clause and + to separate each word in the clause\n\n"
+        "e.g. weight+gt+2.8 rating+le+8\n\n"
         "For comparison only use:\n"
         "   gt for greater than\n"
         "   ge for greater or equal than\n"
