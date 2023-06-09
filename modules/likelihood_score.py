@@ -85,4 +85,4 @@ def game_buy_score(
             f"""Buying Score for {bg.name} is {score} (M: {round(game_mechanic_score,2)} + D: {round(game_designer_score,2)})"""
         )
     else:
-        return score
+        return {bg.name: score}

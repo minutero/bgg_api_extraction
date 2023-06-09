@@ -86,10 +86,10 @@ def suggest_games(user, **kwargs) -> DataFrame:
     df_mechanic = get_mechanics_best(
         list(list_rank.head(top)), own_games, results, True, True, where_clause
     )
-    df_suggestion = pd.concat([df_designer, df_mechanic])
+    df_suggestion = pd.concat([df_designer, df_mechanic]).reset_index(drop=True)
     if verbose:
         print(df_suggestion)
-    return df_suggestion
+    return df_suggestion.to_dict("records")
 
 
 def get_designer_best(
@@ -139,11 +139,8 @@ def get_designer_best(
         .sort_values("rating", ascending=False)
         .drop_duplicates("name")
     )
-    df_designer_score.loc[:, "name"] = (
-        df_designer_score.name + " (" + df_designer_score.id.apply(str) + ")"
-    )
     df_designer_top = df_designer_score.head(results)[
-        ["name", "rating", "type"]
+        ["id", "name", "rating", "type"]
     ].reset_index(drop=True)
     return df_designer_top.assign(recommendation="designer")
 
@@ -204,11 +201,8 @@ def get_mechanics_best(
         .agg("sum")
         .sort_values(["count", "rating"], ascending=False)
     )
-    df_mechanics_score.loc[:, "name"] = (
-        df_mechanics_score.name + " (" + df_mechanics_score.id.apply(str) + ")"
-    )
     df_mechanics_top = df_mechanics_score.head(results)[
-        ["name", "rating", "type"]
+        ["id", "name", "rating", "type"]
     ].reset_index(drop=True)
     return df_mechanics_top.assign(recommendation="mechanics")
 
