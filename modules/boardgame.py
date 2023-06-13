@@ -138,8 +138,34 @@ Published = {self.year}"""
                 """
             run_query(sql, execute_only=True, parameters=(mechanic_id, mechanic_name))
 
+    def to_list_db(self, items=["game", "designer", "mechanic"]):
+        dict_result = {}
+        if "game" in items:
+            game_list = [
+                self.id,
+                self.name,
+                self.weight,
+                self.rating,
+                self.year,
+                self.type,
+                self.minplayers,
+                self.maxplayers,
+                self.age,
+                self.minplaytime,
+                self.maxplaytime,
+                self.rating_users,
+                self.weight_users,
+            ]
+            dict_result["game"] = game_list
+        if "designer" in items:
+            dict_result["designer"] = [[k, v] for k, v in self.designer.items()]
+        if "mechanic" in items:
+            dict_result["mechanic"] = [[k, v] for k, v in self.mechanic.items()]
 
-def save_games(list_ids: list, already_db=None, verbose=False):
+        return dict_result
+
+
+def save_games_individual(list_ids: list, already_db=None, verbose=False):
     if not already_db:
         already_db = (
             run_query(

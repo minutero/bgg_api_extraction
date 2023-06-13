@@ -9,7 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import logging
-from modules.boardgame import save_games
+from modules.db import save_games
 from config.db_connection import run_query, df_to_db
 from dotenv_vault import load_dotenv
 
@@ -88,7 +88,7 @@ def get_games_from_designer(
             f"""select name from boardgames.designer
             where id in ({",".join([str(x) for x in list_designer_process])})"""
         ).name.to_list()
-    count_designer = len(name_list)
+    count_designer = len(id_list)
     if verbose:
         logger.info("###################################################")
         logger.info(
@@ -103,9 +103,8 @@ def get_games_from_designer(
         if verbose:
             logger.info("###################################################")
             logger.info(
-                f"Designer {str(i).zfill(2)}/{str(count_designer).zfill(2)}: Processing {designer}({id})"
+                f"Designer {str(i).zfill(2)}/{str(len(list_designer_process)).zfill(2)}: Getting games for {designer}({id})"
             )
-            logger.info("###################################################")
 
         regex = re.compile("[^\w-]")
         new_name = regex.sub("", unidecode(designer).replace(" ", "-")).lower()
@@ -131,7 +130,8 @@ def get_games_from_designer(
                 f"update boardgames.designer set total_games = {int(total_games)} where id = {int(id)}",
                 execute_only=True,
             )
-            if not only_total:
-                save_games(designer_games)
+        if not only_total:
+            logger.info(f"Designer has {len(designer_games)} games. Inserting...")
+            save_games(designer_games, verbose=verbose)
     if len(list_designer_process):
         browser.quit()

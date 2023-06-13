@@ -1,13 +1,13 @@
 import os
+import sys
 import logging
 import requests
 import json
 import pandas as pd
 from bs4 import BeautifulSoup
 from unicodedata import normalize
-from modules.designers import get_designers
-from config.config import designer_url
-from modules.db import db_init, save_list_network_to_db
+from modules.db import save_games
+from modules.designers import get_games_from_designer
 from config.db_connection import df_to_db, run_query
 from dotenv_vault import load_dotenv
 
@@ -18,20 +18,37 @@ logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, os.getenv("LOG_LEVEL", "INFO")))
 
 ### CREATE TABLES IN DB
-db_init()
+# db_init()
 ### INSERT INFORMATION ON DESIGNERS TABLE
-get_designers(designer_url)
+# get_designers(designer_url)
 
-### TOP 100 GAMES
-url = "https://boardgamegeek.com/browse/boardgame"
-req = requests.get(url)
-html = req.content
-bs = BeautifulSoup(html, features="html.parser")
-games_top100 = bs.table.findAll(
-    lambda tag: tag.name == "a" and tag.has_attr("href") and tag.has_attr("class")
-)
-list_games_id = [k["href"].split("/")[2] for k in games_top100]
-save_list_network_to_db(list_games_id)
+
+def save_list_network_to_db(list_games_id, *args):
+    verbose = args[0] if args else False
+    games = [str(game_id) for game_id in list_games_id]
+    save_games(games, verbose=verbose)
+
+    df_designer_download = run_query(
+        f"""with designer_in_list as (
+                select designer_id
+                from boardgames.bg_x_designer
+                where game_id in ({','.join(games)})
+                )
+            select dl.designer_id,
+                d.name,
+                count(distinct game_id)
+            from boardgames.bg_x_designer db
+            inner join boardgames.designer d on db.designer_id = d.id
+            inner join designer_in_list dl on db.designer_id = dl.designer_id
+            group by 1,2
+            """,
+    )
+
+    get_games_from_designer(
+        df_designer_download.designer_id.to_list(),
+        df_designer_download.name.to_list(),
+        verbose=verbose,
+    )
 
 
 ### GAMES ALREADY DOWNLOADED
@@ -160,3 +177,25 @@ def bg_designer_from_json(json_game):
             "designer_id": designer_ids,
         }
     )
+
+
+### GAMES FROM RANKING
+def get_top_games(pages):
+    for page in range(1, pages):
+        logger.info(f"Processing page {page} from Overall Ranking")
+        url = f"https://boardgamegeek.com/browse/boardgame{'/page/' + str(page) if page > 1 else ''}"
+        req = requests.get(url)
+        html = req.content
+        bs = BeautifulSoup(html, features="html.parser")
+        games_top100 = bs.table.findAll(
+            lambda tag: tag.name == "a"
+            and tag.has_attr("href")
+            and tag.has_attr("class")
+        )
+        list_games_id = [k["href"].split("/")[2] for k in games_top100]
+        save_list_network_to_db(list_games_id, True)
+
+
+if __name__ == "__main__":
+    pages = sys.argv[1] if len(sys.argv) > 1 else 5
+    get_top_games(pages)

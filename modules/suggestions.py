@@ -1,6 +1,6 @@
 import re
 from modules.api_request import bgg_api_call
-from modules.db import save_list_network_to_db
+from modules.db_init import save_list_network_to_db
 from config.db_connection import run_query
 import pandas as pd
 from pandas import DataFrame
