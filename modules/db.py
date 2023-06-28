@@ -65,7 +65,7 @@ def save_games(list_ids: list, verbose=False):
                     f"Game {list_games.index(game)+1} in list with id {game.id} could not be obtained from API. Trying next game."
                 )
                 continue
-            game_info = game.to_list_db()
+            game_info = game.bg_to_list()
             list_game_list.append(game_info["game"])
             list_designer_list.extend(game_info["designer"])
             list_bxd.extend([[game.id, d[0]] for d in game_info["designer"]])
@@ -156,30 +156,8 @@ def to_postgresql(
         Table name
     schema : str
         Schema name
-    mode : str
-        Append, overwrite or upsert.
-            append: Inserts new records into table.
-            overwrite: Drops table and recreates.
-            upsert: Perform an upsert which checks for conflicts on columns given by `upsert_conflict_columns` and
-            sets the new values on conflicts. Note that `upsert_conflict_columns` is required for this mode.
-    index : bool
-        True to store the DataFrame index as a column in the table,
-        otherwise False to ignore it.
-    dtype: Dict[str, str], optional
-        Dictionary of columns names and PostgreSQL types to be casted.
-        Useful when you have columns with undetermined or mixed data types.
-        (e.g. {'col name': 'TEXT', 'col2 name': 'FLOAT'})
-    varchar_lengths : Dict[str, int], optional
-        Dict of VARCHAR length by columns. (e.g. {"col1": 10, "col5": 200}).
-    use_column_names: bool
-        If set to True, will use the column names of the DataFrame for generating the INSERT SQL Query.
-        E.g. If the DataFrame has two columns `col1` and `col3` and `use_column_names` is True, data will only be
-        inserted into the database columns `col1` and `col3`.
     chunksize: int
         Number of rows which are inserted with each SQL query. Defaults to inserting 200 rows per query.
-    upsert_conflict_columns: List[str], optional
-        This parameter is only supported if `mode` is set top `upsert`. In this case conflicts for the given columns are
-        checked for evaluating the upsert.
     insert_conflict_columns: List[str], optional
         This parameter is only supported if `mode` is set top `append`. In this case conflicts for the given columns are
         checked for evaluating the insert 'ON CONFLICT DO NOTHING'.

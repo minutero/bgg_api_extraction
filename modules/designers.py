@@ -9,8 +9,9 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import logging
-from modules.db import save_games
-from config.db_connection import run_query, df_to_db
+from modules.db import save_games, to_postgresql
+from modules.helper import get_secret
+from config.db_connection import run_query, create_connection
 from dotenv_vault import load_dotenv
 
 load_dotenv()
@@ -27,9 +28,10 @@ def get_designers(url):
     url_page = url + "/page/21"
     driver = webdriver.Chrome(options=chrome_options)
     time.sleep(2)
+    credentials = get_secret("bgg-website-access")
     driver.get(url_page)
-    driver.find_element(By.ID, "inputUsername").send_keys(os.environ.get("bgg_user"))
-    driver.find_element(By.ID, "inputPassword").send_keys(os.environ.get("bgg_pass"))
+    driver.find_element(By.ID, "inputUsername").send_keys(credentials.get("bgg_user"))
+    driver.find_element(By.ID, "inputPassword").send_keys(credentials.get("bgg_pass"))
     driver.find_element(
         By.XPATH,
         '//*[@id="mainbody"]/div/div/gg-login-page/div[1]/div/gg-login-form/form/fieldset/div[3]/button[1]',
@@ -57,7 +59,13 @@ def get_designers(url):
             if int(k["href"].split("/")[2]) not in already_in_db.id.to_list()
         }
         designers_df = pd.DataFrame(designers_dict.items(), columns=["id", "name"])
-        df_to_db(designers_df, "designer", "boardgames")
+        to_postgresql(
+            df=designers_df,
+            con=create_connection(),
+            table="designer",
+            schema="boardgames",
+            insert_conflict_columns=["id"],
+        )
         get_games_from_designer(
             designers_df.id.to_list(),
             designers_df.name.to_list(),

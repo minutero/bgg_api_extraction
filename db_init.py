@@ -6,9 +6,10 @@ import json
 import pandas as pd
 from bs4 import BeautifulSoup
 from unicodedata import normalize
-from modules.db import save_games
+from modules.db import save_games, to_postgresql
 from modules.designers import get_games_from_designer
-from config.db_connection import df_to_db, run_query
+from modules.helper import list_game_files, read_json_file
+from config.db_connection import run_query, create_connection
 from dotenv_vault import load_dotenv
 
 load_dotenv()
@@ -53,12 +54,7 @@ def save_list_network_to_db(list_games_id, *args):
 
 ### GAMES ALREADY DOWNLOADED
 def games_from_files():
-    path_to_json = (
-        r"C:\Users\NB-FSILVA\python_personal\bgg_api_extraction\all_games_json"
-    )
-    json_files = [
-        pos_json for pos_json in os.listdir(path_to_json) if pos_json.endswith(".json")
-    ]
+    json_files = list_game_files()
     games_in_db = run_query("select id from boardgames.boardgame")
     list_json_exclude = [
         f"game_{str(x).zfill(6)}.json" for x in list(games_in_db["id"].values)
@@ -74,22 +70,31 @@ def games_from_files():
     for i, js in enumerate(json_to_process):
         if i % 100 == 0:
             logger.info(f"Processing file {js} ({i}/{total_n_process})")
-        try:
-            with open(os.path.join(path_to_json, js)) as json_file:
-                json_text = json.load(json_file)
-                boardgame.append(boardgame_from_json(json_text))
-                mechanic.append(bg_mechanic_from_json(json_text))
-                designer.append(bg_designer_from_json(json_text))
-        except:
-            logger.error(f"Error on file {js}")
-            return
+        json_text = read_json_file(js)
+        boardgame.append(boardgame_from_json(json_text))
+        mechanic.append(bg_mechanic_from_json(json_text))
+        designer.append(bg_designer_from_json(json_text))
     logger.info(f"Ready reading {total_n_process} files. Starting DB insert.")
-    df_to_db(pd.concat(boardgame), "boardgame", "boardgames")
-    df_to_db(
-        pd.concat(mechanic), "bg_x_mechanic", "boardgames", ["game_id", "mechanic_id"]
+    to_postgresql(
+        df=pd.concat(boardgame),
+        con=create_connection(),
+        table="boardgame",
+        schema="boardgames",
+        insert_conflict_columns=["id"],
     )
-    df_to_db(
-        pd.concat(designer), "bg_x_designer", "boardgames", ["game_id", "designer_id"]
+    to_postgresql(
+        df=pd.concat(mechanic),
+        con=create_connection(),
+        table="bg_x_mechanic",
+        schema="boardgames",
+        insert_conflict_columns=["game_id", "mechanic_id"],
+    )
+    to_postgresql(
+        df=pd.concat(designer),
+        con=create_connection(),
+        table="bg_x_designer",
+        schema="boardgames",
+        insert_conflict_columns=["game_id", "designer_id"],
     )
 
 

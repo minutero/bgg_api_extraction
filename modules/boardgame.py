@@ -1,8 +1,6 @@
 import os
-import time
-import json
 import logging
-from modules.api_request import check_exists_db, get_game
+from modules.api_request import get_from_bgg, json_to_game
 from config.db_connection import run_query
 from config.config import columns
 from typing import Mapping
@@ -59,22 +57,7 @@ Published = {self.year}"""
         return f"{self.name}({self.id})"
 
     def get_boardgame_information(self):
-        path_to_json = os.getenv("path_jsons")
-        try:
-            json_files = [
-                pos_json
-                for pos_json in os.listdir(path_to_json)
-                if pos_json.endswith(".json")
-            ]
-        except:
-            json_files = []
-        game_file = f"game_{str(self.id).zfill(6)}.json"
-        if game_file not in json_files:
-            bg_dict = check_exists_db(self.name, self.id)
-        else:
-            with open(os.path.join(os.getenv("path_jsons"), game_file)) as json_file:
-                json_text = json.load(json_file)
-            bg_dict = get_game(json_text)
+        bg_dict = get_from_bgg(self.name, self.id)
         self.id = int(bg_dict["id"])
         self.name = str(bg_dict["name"]).replace('"', "'")
         self.weight = float(bg_dict["weight"])
@@ -91,10 +74,16 @@ Published = {self.year}"""
         self.designer = bg_dict["designer"]
         self.mechanic = bg_dict["mechanic"]
 
-    def save_to_db(self):
+    def save_to_db(self, update=True):
         query = f"""INSERT INTO boardgames.boardgame({",".join(columns)})
                     VALUES ({(",%s"*len(columns))[1:]})
-                    ON CONFLICT (id) DO NOTHING"""
+                    ON CONFLICT (id) DO {"UPDATE set name = '" + self.name + "'" +
+                                        ", weight = " + str(self.weight) +
+                                        ", rating = " + str(self.rating) +
+                                        ", rating_users = " + str(self.rating_users) +
+                                        ", weight_users = " + str(self.weight_users) +
+                                        " where boardgame.id = " + str(self.id)
+                                        if update else "NOTHING"}"""
         run_query(
             query,
             parameters=(
@@ -138,7 +127,7 @@ Published = {self.year}"""
                 """
             run_query(sql, execute_only=True, parameters=(mechanic_id, mechanic_name))
 
-    def to_list_db(self, items=["game", "designer", "mechanic"]):
+    def bg_to_list(self, items=["game", "designer", "mechanic"]):
         dict_result = {}
         if "game" in items:
             game_list = [
@@ -163,26 +152,3 @@ Published = {self.year}"""
             dict_result["mechanic"] = [[k, v] for k, v in self.mechanic.items()]
 
         return dict_result
-
-
-def save_games_individual(list_ids: list, already_db=None, verbose=False):
-    if not already_db:
-        already_db = (
-            run_query(
-                f"select id from boardgames.boardgame where id in ({','.join(list_ids)})"
-            )
-            .id.apply(str)
-            .to_list()
-        )
-    list_games = [
-        boardgame(id=ind_id) for ind_id in list_ids if ind_id not in already_db
-    ]
-    if verbose:
-        logger.info(
-            f"From all {len(list_ids)} games {len(list_games)} are going to be inserted in the database"
-        )
-    for game in list_games:
-        game.get_boardgame_information()
-        logger.info(f"{game.name} is going to be inserted in database")
-        game.save_to_db()
-        time.sleep(2)

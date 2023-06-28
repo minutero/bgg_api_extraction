@@ -77,21 +77,34 @@ def get_from_name(name: str):
     return bg
 
 
-def get_from_id(id: int):
+def get_from_id(game_id: int):
     path_to_json = os.getenv("path_jsons")
-    boardgame_info = bgg_api_call(call_type="thing", id=id)
+    game_file = f"game_{str(game_id).zfill(6)}.json"
+    game_path = os.path.join(path_to_json, game_file)
     try:
-        with open(
-            os.path.join(path_to_json, f"game_{str(id).zfill(6)}.json"), "w"
-        ) as f:
-            json.dump(boardgame_info, f)
+        json_files = [
+            pos_json
+            for pos_json in os.listdir(path_to_json)
+            if pos_json.endswith(".json")
+        ]
     except:
-        pass
-    bg = get_game(boardgame_info)
+        json_files = []
+
+    if game_file in json_files:
+        with open(game_path) as json_file:
+            boardgame_info = json.load(json_file)
+    else:
+        boardgame_info = bgg_api_call(call_type="thing", id=game_id)
+        try:
+            with open(game_path, "w") as f:
+                json.dump(boardgame_info, f)
+        except:
+            pass
+    bg = json_to_game(boardgame_info)
     return bg
 
 
-def get_game(boardgame_info, replace_name: bool = True):
+def json_to_game(boardgame_info, replace_name: bool = True):
     bg = {}
     # ID
     bg["id"] = int(boardgame_info["@id"])
@@ -137,7 +150,7 @@ def get_game(boardgame_info, replace_name: bool = True):
     return bg
 
 
-def check_exists_db(
+def get_from_bgg(
     name: str = None,
     id: int = None,
 ):

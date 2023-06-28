@@ -1,7 +1,7 @@
-import os
 import psycopg2
 import sqlite3
 import pandas as pd
+from modules.helper import get_secret
 
 
 def create_connection(db=None):
@@ -10,14 +10,15 @@ def create_connection(db=None):
     :return: Connection object or None
     """
     conn = None
+    credentials = get_secret("rds-postgresql-bgg")
     try:
         if not db:
             conn = psycopg2.connect(
-                database=os.getenv("db_name"),
-                host=os.getenv("db_host"),
-                user=os.getenv("db_user"),
-                password=os.getenv("db_pass"),
-                port=os.getenv("db_port"),
+                database=credentials.get("dbInstanceIdentifier"),
+                host=credentials.get("host"),
+                user=credentials.get("username"),
+                password=credentials.get("password"),
+                port=credentials.get("port"),
             )
         else:
             conn = sqlite3.connect(db)
@@ -43,22 +44,3 @@ def run_query(query: str, execute_only: bool = False, parameters=None, conn_type
     c.close()
     conn.close()
     return df
-
-
-def df_to_db(df, table, schema=None, primary=["id"]):
-    cols = list(df.columns)
-    schema_dot = schema + "." if schema else None
-    sq = "'"
-    for row in df.to_dict("records"):
-        values = [
-            f"'{x.replace(sq,sq*2)}'"
-            if (isinstance(x, str) and "'" in x)
-            else f"'{x}'"
-            if isinstance(x, str)
-            else str(x)
-            for x in row.values()
-        ]
-        query = f"""INSERT INTO {schema_dot}{table} ({",".join(cols)})
-            VALUES ({",".join(values)})
-            ON CONFLICT ({",".join(primary)}) DO NOTHING"""
-        run_query(query, execute_only=True)
